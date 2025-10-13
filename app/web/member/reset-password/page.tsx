@@ -1,10 +1,6 @@
-// app/web/member/reset-password/page.tsx
-// *** Server Component: ห้ามมี "use client" ***
-
 import { Suspense } from 'react';
-import ResetPasswordClient from './ResetPasswordClient'; // นำเข้า Client Component
+import ResetPasswordClient from './ResetPasswordClient'; 
 
-// Loading Component (Fallback UI)
 const LoadingFallback = () => (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl">
@@ -14,11 +10,11 @@ const LoadingFallback = () => (
     </div>
 );
 
-// Page Component หลัก
+// This component is the one that gets prerendered first
 export default function ResetPasswordPage() {
     return (
-        // หุ้ม Client Component ด้วย Suspense เพื่อให้ Next.js ไม่พยายามดึง URL search params
-        // ระหว่างการ Pre-render บน Server
+        // The Suspense boundary prevents the build from crashing while waiting 
+        // for the client component (which uses useSearchParams) to load.
         <Suspense fallback={<LoadingFallback />}>
             <ResetPasswordClient /> 
         </Suspense>
