@@ -15,8 +15,8 @@ interface ErrorInterface {
 
 export default function ResetPasswordClient() {
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const token = searchParams.get('token'); // ดึง token จาก URL
+    const searchParams = useSearchParams(); // Hook ที่ทำให้เกิดปัญหา SSR/Prerender
+    const token = searchParams.get('token'); 
     
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,15 +26,12 @@ export default function ResetPasswordClient() {
     
     // แจ้งเตือนหากไม่พบ Token
     useEffect(() => {
-        // ใช้ useEffect เพื่อให้โค้ดรันเฉพาะบน Client-side หลัง Mount
         if (!token) {
             Swal.fire({
                 title: 'ผิดพลาด',
                 text: 'ไม่พบ Token สำหรับรีเซ็ตรหัสผ่าน กรุณาใช้ลิงก์จากอีเมลล่าสุด',
                 icon: 'warning'
             }).then(() => {
-                // ต้องหุ้มการใช้ router.push ด้วย setTimeout เล็กน้อย
-                // เพื่อให้แน่ใจว่า Swal ทำงานเสร็จก่อนบน Client (บางครั้งมีปัญหา Timing)
                 setTimeout(() => {
                     router.push('/web/member/forgot-password'); 
                 }, 100);
@@ -45,7 +42,7 @@ export default function ResetPasswordClient() {
     const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!token) return; // ไม่ดำเนินการต่อถ้าไม่มี token
+        if (!token) return; 
         
         if (newPassword !== confirmPassword) {
             Swal.fire({ title: 'ผิดพลาด', text: 'รหัสผ่านใหม่ไม่ตรงกัน', icon: 'error' });
@@ -64,7 +61,6 @@ export default function ResetPasswordClient() {
                 token: token,
                 newPassword: newPassword
             }
-            // สมมติว่า Config.apiUrl ถูกตั้งค่าไว้
             const url = Config.apiUrl + '/api/member/reset-password'
             const response = await axios.post(url, payload);
 
@@ -74,7 +70,7 @@ export default function ResetPasswordClient() {
                     text: response.data.message || 'รหัสผ่านของคุณถูกเปลี่ยนเรียบร้อยแล้ว',
                     icon: 'success'
                 }).then(() => {
-                    router.push('/web/member/sign-in'); // นำทางไปหน้าเข้าสู่ระบบหลังรีเซ็ตสำเร็จ
+                    router.push('/web/member/sign-in'); 
                 });
             } else {
                  Swal.fire({
