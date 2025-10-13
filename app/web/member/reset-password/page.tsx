@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import ResetPasswordClient from './ResetPasswordClient'; 
+import ResetPasswordClient from './components/ResetPasswordClient'; 
 
 const LoadingFallback = () => (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
