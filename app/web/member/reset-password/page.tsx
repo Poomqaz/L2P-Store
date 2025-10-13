@@ -1,16 +1,23 @@
-'use client'
+// app/web/member/reset-password/ResetPasswordClient.tsx
+"use client"
+
 import { useState, useEffect } from "react"
 import { Config } from "@/app/config"
 import axios from "axios"
 import Swal from "sweetalert2"
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ErrorInterface } from "@/app/interface/ErrorInterface"
 
-export default function ResetPassword() {
+// Interface สำหรับ Error (สมมติว่าคุณมี ErrorInterface อยู่แล้ว)
+interface ErrorInterface {
+    message: string;
+}
+
+export default function ResetPasswordClient() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const token = searchParams.get('token'); // ดึง token จาก URL
+    
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -19,13 +26,18 @@ export default function ResetPassword() {
     
     // แจ้งเตือนหากไม่พบ Token
     useEffect(() => {
+        // ใช้ useEffect เพื่อให้โค้ดรันเฉพาะบน Client-side หลัง Mount
         if (!token) {
             Swal.fire({
                 title: 'ผิดพลาด',
                 text: 'ไม่พบ Token สำหรับรีเซ็ตรหัสผ่าน กรุณาใช้ลิงก์จากอีเมลล่าสุด',
                 icon: 'warning'
             }).then(() => {
-                 router.push('/web/member/forgot-password'); 
+                // ต้องหุ้มการใช้ router.push ด้วย setTimeout เล็กน้อย
+                // เพื่อให้แน่ใจว่า Swal ทำงานเสร็จก่อนบน Client (บางครั้งมีปัญหา Timing)
+                setTimeout(() => {
+                    router.push('/web/member/forgot-password'); 
+                }, 100);
             });
         }
     }, [token, router]);
@@ -52,6 +64,7 @@ export default function ResetPassword() {
                 token: token,
                 newPassword: newPassword
             }
+            // สมมติว่า Config.apiUrl ถูกตั้งค่าไว้
             const url = Config.apiUrl + '/api/member/reset-password'
             const response = await axios.post(url, payload);
 
@@ -87,10 +100,10 @@ export default function ResetPassword() {
         return (
              <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-16">
                  <div className="max-w-md w-full text-center p-8 bg-white rounded-2xl shadow-xl">
-                    <h1 className="text-2xl font-bold text-gray-800">กำลังตรวจสอบ...</h1>
-                    <p className="text-gray-500 mt-2">กรุณารอสักครู่หรือตรวจสอบอีเมลของคุณ</p>
+                     <h1 className="text-2xl font-bold text-gray-800">กำลังตรวจสอบ...</h1>
+                     <p className="text-gray-500 mt-2">กรุณารอสักครู่หรือตรวจสอบอีเมลของคุณ</p>
                  </div>
-            </div>
+             </div>
         );
     }
 
@@ -119,11 +132,9 @@ export default function ResetPassword() {
                             </label>
                             <div className="relative">
                                 <input 
-                                    // สลับ type ระหว่าง 'text' กับ 'password'
                                     type={showNewPassword ? 'text' : 'password'}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
-                                    // เพิ่ม pr-12 เพื่อเว้นที่สำหรับปุ่ม
                                     className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-gray-50 focus:bg-white pr-12"
                                     placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)"
                                     required
@@ -149,11 +160,9 @@ export default function ResetPassword() {
                             </label>
                             <div className="relative">
                                 <input 
-                                    // สลับ type ระหว่าง 'text' กับ 'password'
                                     type={showConfirmPassword ? 'text' : 'password'}
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    // เพิ่ม pr-12 เพื่อเว้นที่สำหรับปุ่ม
                                     className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 bg-gray-50 focus:bg-white pr-12"
                                     placeholder="ยืนยันรหัสผ่านใหม่"
                                     required
@@ -168,7 +177,7 @@ export default function ResetPassword() {
                                     <i className={`fa ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                 </button>
                             </div>
-                             {/* Password Match Indicator */}
+                            {/* Password Match Indicator */}
                             {confirmPassword && (
                                 <div className="flex items-center mt-2">
                                     {newPassword === confirmPassword && newPassword.length >= 6 ? (
