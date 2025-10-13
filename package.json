@@ -1,0 +1,40 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "chart.js": "^4.5.0",
+    "cors": "^2.8.5",
+    "dynamsoft-camera-enhancer": "^4.1.1",
+    "dynamsoft-javascript-barcode": "^9.6.42",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.544.0",
+    "next": "15.3.1",
+    "react": "^19.0.0",
+    "react-barcode": "^1.6.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.2.1",
+    "sweetalert2": "^11.21.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.5",
+    "typescript": "^5"
+  }
+}

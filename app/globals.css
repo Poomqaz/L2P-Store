@@ -1,0 +1,869 @@
+@import 'tailwindcss';
+/* <meta name="viewport" content="width=device-width, initial-scale=1.0"> */
+
+
+/* ===== Global ===== */
+* {
+  font-family: 'Prompt', sans-serif;
+  font-size: 18px;
+}
+
+body {
+  @apply bg-gradient-to-b from-gray-200 to-gray-400 font-['Prompt'];
+  font-size: 18px;
+}
+
+/* ===== Cursor Pointer for Interactive Elements ===== */
+button, 
+input[type="button"], 
+input[type="submit"], 
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+a,
+.btn-edit,
+.btn-delete,
+.btn-plus,
+.btn-minus,
+.modal-close,
+.product-actions button {
+  cursor: pointer !important;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+textarea {
+  cursor: text !important;
+}
+
+/* ===== Signin Page ===== */
+.signin-block {
+  @apply flex items-center justify-center min-h-screen px-4;
+}
+
+.signin {
+  @apply w-full max-w-md mx-auto /* เพิ่มขนาดจาก max-w-sm เป็น max-w-md */
+    flex flex-col gap-5 /* เพิ่ม gap จาก 4 เป็น 5 */
+    bg-white px-8 py-10 /* เพิ่ม padding */
+    rounded-xl shadow-lg border border-gray-300;
+}
+
+.signin h1 {
+  @apply text-3xl font-semibold text-center text-gray-900; /* เพิ่มขนาดจาก text-2xl เป็น text-3xl */
+}
+
+.signin label {
+  @apply text-lg font-medium text-gray-800; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.signin input {
+  @apply w-full border border-gray-300 
+    rounded-md px-4 py-3 /* เพิ่ม padding */
+    text-gray-700 text-lg /* เพิ่มขนาดจาก text-base เป็น text-lg */
+    focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-400;
+  cursor: text !important;
+}
+
+.signin button {
+  @apply bg-purple-600 hover:bg-purple-700 
+    text-white font-semibold text-lg /* เพิ่มขนาดจาก text-base เป็น text-lg */
+    rounded-md px-5 py-3 /* เพิ่ม padding */
+    mt-3 shadow 
+    transition-all duration-200;
+  cursor: pointer !important;
+}
+
+/* sidebar */
+/* .sidebar {
+  @apply bg-gray-900 text-white w-80 min-h-screen flex flex-col;
+  font-size: 18px;
+} */
+.sidebar {
+  @apply bg-gray-900 text-white w-80 flex flex-col;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20; 
+  overflow-y: auto;  
+  font-size: 18px;
+}
+.sidebar .header {
+  @apply flex flex-col items-center py-8 border-b border-gray-700 flex-shrink-0;
+}
+
+.sidebar .header h1 {
+  @apply text-3xl font-bold;
+}
+
+.sidebar .header p {
+  @apply text-lg text-gray-400;
+}
+
+.sidebar .button {
+  @apply flex gap-4 justify-center mt-5;
+}
+
+.sidebar .button a {
+  @apply text-blue-300 border border-blue-300 
+    px-5 py-3 rounded-lg hover:bg-blue-300
+    hover:text-gray-900 transition-colors duration-150
+    text-lg;
+  cursor: pointer !important;
+}
+
+.sidebar .button button {
+  @apply text-white border border-white 
+    px-5 py-3 rounded-lg hover:bg-white
+    hover:text-gray-900 transition-colors duration-150
+    text-lg;
+  cursor: pointer !important;
+}
+
+.sidebar .body {
+  @apply flex flex-col space-y-3 flex-1 overflow-y-auto px-5 py-3;
+  /* flex-1 ทำให้ขยายเต็มพื้นที่ที่เหลือ */
+  min-height: 0; /* สำคัญ: ป้องกัน flex item ไม่หดตัว */
+}
+
+.sidebar .body a {
+  @apply flex items-center gap-x-3 ps-4 py-3
+    rounded-md hover:bg-gray-800 
+    transition-colors duration-150
+    text-lg flex-shrink-0;
+  cursor: pointer !important;
+}
+
+/* ตั้งค่า layout container */
+.app-layout {
+  display: flex;
+  min-height: 100vh; /* ให้สูงสุดเท่าจอ */
+}
+
+
+/* .content-area {flex: 1;overflow-y: auto;padding: 24px;min-height: 100vh;
+} */
+
+.content-area {flex: 1;overflow-y: auto;padding: 24px;min-height: 100vh;margin-left: 20rem;
+}
+
+/* Responsive (Mobile) */
+@media (max-width: 768px) {
+ .sidebar {
+ @apply w-full relative;
+    height: auto;
+    position: relative;
+    top: auto;
+    left: auto;
+ min-height: auto;
+}
+  
+ .content-area {
+ @apply p-4;
+    margin-left: 0; 
+ }
+  
+  .main-content {
+    margin-left: 0;
+  }
+}
+
+/* ===== Container Section ===== */
+.container {
+  @apply p-6 bg-gray-400 m-6 rounded-2xl flex flex-col space-y-4; /* เพิ่ม padding, margin และ spacing */
+}
+
+.container .title {
+  @apply font-semibold text-4xl mb-4; /* เพิ่มขนาดจาก text-3xl เป็น text-4xl */
+}
+
+.container input {
+  @apply w-full border border-gray-500 p-4 rounded-xl bg-gray-200 /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: text !important;
+}
+
+.container button {
+  @apply bg-indigo-600 px-6 py-3 text-white rounded-xl shadow-lg /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+/* ===== Table ===== */
+.container table {
+  @apply w-full;
+  font-size: 18px; /* เพิ่มขนาดตัวหนังสือจาก 16px เป็น 18px */
+}
+
+.container table thead th {
+  @apply bg-gray-600 text-white font-medium py-3 text-left px-3 /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.container table tbody td {
+  @apply bg-gray-300 px-3 py-3 border border-gray-400 border-t-0 /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.container table tbody tr:last-child td:first-child {
+  @apply rounded-bl-2xl border-0;
+}
+
+.container table tbody tr:last-child td:last-child {
+  @apply rounded-br-2xl border-0;
+}
+
+.container table thead tr th:first-child {
+  @apply rounded-tl-2xl;
+}
+
+.container table thead tr th:last-child {
+  @apply rounded-tr-2xl;
+}
+
+.container .btn-edit {
+  @apply bg-blue-500 text-white rounded-md px-5 py-3 hover:bg-blue-600 transition /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.container .btn-delete {
+  @apply bg-red-500 text-white rounded-md px-5 py-3 hover:bg-red-600 transition /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+/* ===== Enhanced Modal Styles ===== */
+.modal {
+  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm;
+  animation: modalBackdropFadeIn 0.2s ease-out;
+}
+
+@keyframes modalBackdropFadeIn {
+  from {
+    background-color: transparent;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+  }
+}
+
+.modal-container {
+  @apply w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden; /* เพิ่มขนาดจาก max-w-2xl เป็น max-w-3xl */
+  animation: modalSlideIn 0.3s ease-out;
+  max-height: 90vh;
+  font-size: 18px; /* เพิ่มขนาดตัวหนังสือจาก 16px เป็น 18px */
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-8 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50; /* เพิ่ม padding */
+}
+
+.modal-title {
+  @apply text-3xl font-bold text-gray-800; /* เพิ่มขนาดจาก text-2xl เป็น text-3xl */
+}
+
+.modal-close {
+  @apply text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-3 rounded-full transition-all duration-200; /* เพิ่ม padding */
+  cursor: pointer !important;
+}
+
+.modal-close:hover {
+  transform: scale(1.1);
+}
+
+.modal-body {
+  @apply p-8 overflow-y-auto; /* เพิ่ม padding */
+  max-height: calc(90vh - 200px); /* ปรับเพื่อให้เหมาะกับ header ที่ใหญ่ขึ้น */
+}
+
+.modal-body label {
+  @apply block mb-3 text-lg font-semibold text-gray-700; /* เพิ่มขนาดและ margin */
+}
+
+.modal-body input,
+.modal-body select {
+  @apply w-full rounded-lg border border-gray-200 p-4 text-gray-800 shadow-sm /* เพิ่ม padding */
+    focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400
+    transition-all duration-200
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.modal-body input {
+  cursor: text !important;
+}
+
+.modal-body select {
+  cursor: pointer !important;
+}
+
+.modal-body input:focus,
+.modal-body select:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+/* ===== Enhanced Modal Table Styles ===== */
+.modal-body .table {
+  @apply w-full mt-5 bg-white rounded-xl overflow-hidden shadow-lg border border-gray-200; /* เพิ่ม margin */
+}
+
+.modal-body .table thead {
+  @apply bg-gradient-to-r from-slate-700 to-slate-800;
+}
+
+.modal-body .table thead th {
+  @apply text-white font-semibold py-5 px-5 text-left text-lg uppercase tracking-wide; /* เพิ่มขนาดและ padding */
+}
+
+.modal-body .table thead th:first-child {
+  @apply rounded-tl-xl;
+}
+
+.modal-body .table thead th:last-child {
+  @apply rounded-tr-xl;
+}
+
+.modal-body .table tbody tr {
+  @apply hover:bg-blue-50 transition-colors duration-150;
+}
+
+.modal-body .table tbody tr:nth-child(even) {
+  @apply bg-gray-50;
+}
+
+.modal-body .table tbody td {
+  @apply px-5 py-4 border-b border-gray-100 text-gray-800 /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.modal-body .table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.modal-body .table tbody tr:last-child td:first-child {
+  @apply rounded-bl-xl;
+}
+
+.modal-body .table tbody tr:last-child td:last-child {
+  @apply rounded-br-xl;
+}
+
+.modal-body .table tbody td .btn-plus {
+  @apply bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md /* เพิ่ม padding */
+    font-medium text-lg transition-all duration-200 shadow-sm; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.modal-body .table tbody td .btn-plus:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+}
+
+.modal-body .table tbody td .btn-minus {
+  @apply bg-slate-500 hover:bg-slate-600 text-white px-4 py-2 rounded-md /* เพิ่ม padding */
+    font-medium text-lg transition-all duration-200 shadow-sm; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.modal-body .table tbody td .btn-minus:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(71, 85, 105, 0.3);
+}
+
+.modal-body .table tbody td .btn-delete {
+  @apply bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md /* เพิ่ม padding */
+    font-medium text-lg transition-all duration-200 shadow-sm; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.modal-body .table tbody td .btn-delete:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* ===== Modal Summary Section ===== */
+.modal-summary {
+  @apply mt-8 p-5 bg-gradient-to-r from-amber-50 to-orange-50 /* เพิ่ม margin และ padding */
+    rounded-xl border border-amber-200;
+}
+
+.modal-summary .total-amount {
+  @apply text-4xl font-bold text-orange-600; /* เพิ่มขนาดจาก text-3xl เป็น text-4xl */
+}
+
+.modal-footer {
+  @apply flex justify-end gap-4 p-8 border-t border-gray-100 bg-gray-50; /* เพิ่ม gap และ padding */
+}
+
+.modal-btn {
+  @apply px-8 py-4 rounded-lg font-semibold transition-all duration-200 /* เพิ่ม padding */
+    text-lg uppercase tracking-wide; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.modal-btn-cancel {
+  @apply bg-white text-gray-600 hover:bg-gray-100 border-2 border-gray-300 
+    hover:border-gray-400 shadow-sm;
+}
+
+.modal-btn-cancel:hover {
+  transform: translateY(-1px);
+}
+
+.modal-btn-submit {
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 
+    hover:from-blue-700 hover:to-indigo-700 
+    text-white shadow-lg;
+}
+
+.modal-btn-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+/* ===== Form Styles ===== */
+.front label {
+  @apply block w-full text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.front form {
+  @apply flex flex-col gap-5 bg-white p-5 /* เพิ่ม gap และ padding */
+    border border-gray-300 shadow-md
+    rounded-lg mt-3; /* เพิ่ม margin */
+}
+
+.front form input {
+  @apply border border-gray-400 p-3 rounded-lg /* เพิ่ม padding */
+    bg-white shadow-md text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: text !important;
+}
+
+.front form button {
+  @apply bg-indigo-600 text-white px-5 py-3 /* เพิ่ม padding */
+    rounded-lg shadow-lg text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.table {
+  @apply w-full mt-3; /* เพิ่ม margin */
+  font-size: 18px; /* เพิ่มขนาดตัวหนังสือจาก 16px เป็น 18px */
+}
+
+.table thead th {
+  @apply bg-gray-800 text-white p-4 text-lg; /* เพิ่ม padding และขนาดจาก text-base เป็น text-lg */
+}
+
+.table tbody td {
+  @apply bg-gray-300 border border-l-0 border-r-0 border-b-gray-100 p-2 /* เพิ่ม padding */
+    text-lg; /* เพิ่มขนาดจาก text-base เป็น text-lg */
+}
+
+.table tbody td img {
+  @apply rounded-lg m-2; /* เพิ่ม margin */
+}
+
+.table tbody td .btn-plus {
+  @apply bg-green-700 text-white px-4 py-2 rounded-md text-lg; /* เพิ่ม padding และขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.table tbody td .btn-minus {
+  @apply bg-gray-700 text-white px-4 py-2 rounded-md text-lg; /* เพิ่ม padding และขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+.table tbody td .btn-delete {
+  @apply bg-red-600 text-white px-4 py-2 rounded-md text-lg; /* เพิ่ม padding และขนาดจาก text-base เป็น text-lg */
+  cursor: pointer !important;
+}
+
+/* ===== Product Grid Layout (Fixed) ===== */
+.product-grid {
+  @apply grid gap-5 p-6; /* เพิ่ม gap และ padding */
+  /* Responsive grid columns */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  font-size: 18px;
+}
+
+.product-card {
+  @apply flex flex-col justify-between bg-white border rounded-md shadow hover:shadow-lg transition;
+  min-height: 320px;
+  height: auto;
+}
+
+.product-card img {
+  @apply h-48 w-full object-contain p-3; /* เพิ่มความสูงและ padding */
+}
+
+.product-card .product-content {
+  @apply flex flex-col justify-between flex-1 p-4; /* เพิ่ม padding */
+}
+
+.product-card .product-title {
+  @apply text-lg font-medium text-gray-800 mb-3; /* เพิ่มขนาดและ margin */
+  /* Handle text overflow properly */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  min-height: 2.8em; /* 2 lines * 1.4 line-height */
+}
+
+.product-card .product-price {
+  @apply text-2xl font-bold text-gray-900 mb-3; /* เพิ่มขนาดและ margin */
+}
+
+.product-card .product-actions {
+  @apply flex gap-3 mt-auto; /* เพิ่ม gap */
+}
+
+.product-card .product-actions button {
+  @apply flex-1 py-3 px-4 rounded-md text-lg font-medium transition; /* เพิ่ม padding และขนาด */
+  cursor: pointer !important;
+}
+
+/* ===== Main Content Layout ===== */
+.main-content {
+  @apply flex-1 min-h-screen;
+  /* Remove left margin that was causing the gap */
+  margin-left: 20rem;
+  font-size: 18px;
+}
+
+/* ===== Layout Container ===== */
+.app-layout {
+  @apply flex;
+}
+
+/* ===== Responsive Design ===== */
+@media (max-width: 1024px) {
+  .container {
+    @apply p-4 m-4;
+  }
+  
+  .container .title {
+    @apply text-3xl;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Global adjustments */
+  * {
+    font-size: 16px;
+  }
+  
+  /* Sidebar adjustments */
+  .sidebar {
+    @apply w-full relative;
+    min-height: auto;
+  }
+  
+  .sidebar .header h1 {
+    @apply text-2xl;
+  }
+  
+  .sidebar .header p {
+    @apply text-base;
+  }
+  
+  .sidebar .button a,
+  .sidebar .button button {
+    @apply text-base px-4 py-2;
+  }
+  
+  .sidebar .body a {
+    @apply text-base;
+  }
+  
+  /* App layout */
+  .app-layout {
+    @apply flex-col;
+  }
+  
+  .content-area {
+    @apply p-4;
+  }
+  
+  /* Container adjustments */
+  .container {
+    @apply p-3 m-3;
+  }
+  
+  .container .title {
+    @apply text-2xl mb-3;
+  }
+  
+  .container input,
+  .container button,
+  .container table thead th,
+  .container table tbody td {
+    @apply text-base;
+  }
+  
+  .container button {
+    @apply px-4 py-2;
+  }
+  
+  .container .btn-edit,
+  .container .btn-delete {
+    @apply text-sm px-3 py-2;
+  }
+  
+  /* Modal adjustments */
+  .modal-container {
+    @apply max-w-full mx-3;
+    max-height: 95vh;
+  }
+  
+  .modal-header {
+    @apply p-4;
+  }
+  
+  .modal-title {
+    @apply text-xl;
+  }
+  
+  .modal-body {
+    @apply p-4;
+    max-height: calc(95vh - 180px);
+  }
+  
+  .modal-body label {
+    @apply text-base mb-2;
+  }
+  
+  .modal-body input,
+  .modal-body select {
+    @apply text-base p-3;
+  }
+  
+  .modal-body .table {
+    @apply text-sm;
+    overflow-x: auto;
+    display: block;
+  }
+  
+  .modal-body .table thead th {
+    @apply text-sm px-2 py-3;
+  }
+  
+  .modal-body .table tbody td {
+    @apply text-sm px-2 py-2;
+  }
+  
+  .modal-body .table tbody td .btn-plus,
+  .modal-body .table tbody td .btn-minus,
+  .modal-body .table tbody td .btn-delete {
+    @apply text-sm px-3 py-2;
+  }
+  
+  .modal-summary {
+    @apply mt-4 p-4;
+  }
+  
+  .modal-summary .total-amount {
+    @apply text-2xl;
+  }
+  
+  .modal-footer {
+    @apply p-4 gap-2;
+  }
+  
+  .modal-btn {
+    @apply px-4 py-3 text-base;
+  }
+  
+  /* Product grid */
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    @apply gap-3 p-3;
+  }
+  
+  .product-card {
+    @apply h-auto;
+    min-height: auto;
+  }
+  
+  .product-card img {
+    @apply h-32 p-2;
+  }
+  
+  .product-card .product-content {
+    @apply p-3;
+  }
+  
+  .product-card .product-title {
+    @apply text-sm mb-2;
+    height: auto;
+    -webkit-line-clamp: 2;
+  }
+  
+  .product-card .product-price {
+    @apply text-lg mb-2;
+  }
+  
+  .product-card .product-actions {
+    @apply gap-2;
+  }
+  
+  .product-card .product-actions button {
+    @apply text-sm py-2 px-3;
+  }
+  
+  /* Form styles */
+  .front form {
+    @apply gap-3 p-4;
+  }
+  
+  .front form input {
+    @apply text-base p-2;
+  }
+  
+  .front form button {
+    @apply text-base px-4 py-2;
+  }
+  
+  /* Table styles */
+  .table {
+    @apply text-sm;
+    overflow-x: auto;
+    display: block;
+  }
+  
+  .table thead th {
+    @apply text-sm p-2;
+  }
+  
+  .table tbody td {
+    @apply text-sm p-2;
+  }
+  
+  .table tbody td .btn-plus,
+  .table tbody td .btn-minus,
+  .table tbody td .btn-delete {
+    @apply text-sm px-3 py-2;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  * {
+    font-size: 14px;
+  }
+  
+  .sidebar .header h1 {
+    @apply text-xl;
+  }
+  
+  .sidebar .header p {
+    @apply text-sm;
+  }
+  
+  .sidebar .button {
+    @apply flex-col gap-2;
+  }
+  
+  .sidebar .button a,
+  .sidebar .button button {
+    @apply text-sm px-3 py-2 w-full text-center;
+  }
+  
+  .container {
+    @apply p-2 m-2;
+  }
+  
+  .container .title {
+    @apply text-xl mb-2;
+  }
+  
+  .modal-container {
+    @apply mx-2;
+  }
+  
+  .modal-title {
+    @apply text-lg;
+  }
+  
+  .modal-body {
+    @apply p-3;
+  }
+  
+  .modal-footer {
+    @apply flex-col gap-2 p-3;
+  }
+  
+  .modal-btn {
+    @apply w-full px-4 py-3 text-sm;
+  }
+  
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    @apply gap-2 p-2;
+  }
+  
+  .product-card img {
+    @apply h-24;
+  }
+  
+  .product-card .product-content {
+    @apply p-2;
+  }
+  
+  .product-card .product-title {
+    @apply text-xs mb-1;
+  }
+  
+  .product-card .product-price {
+    @apply text-base mb-2;
+  }
+  
+  .product-card .product-actions button {
+    @apply text-xs py-2 px-2;
+  }
+  
+  .modal-body .table thead th,
+  .modal-body .table tbody td {
+    @apply text-xs px-1 py-2;
+  }
+  
+  .modal-body .table tbody td .btn-plus,
+  .modal-body .table tbody td .btn-minus,
+  .modal-body .table tbody td .btn-delete {
+    @apply text-xs px-2 py-1;
+  }
+  
+  .signin {
+    @apply px-4 py-6;
+  }
+  
+  .signin h1 {
+    @apply text-xl;
+  }
+  
+  .signin input {
+    @apply text-sm py-2 px-3;
+  }
+  
+  .signin button {
+    @apply text-sm py-2 px-4;
+  }
+}
