@@ -1,5 +1,8 @@
-import { PrismaClient, Prisma, Decimal } from "@prisma/client"; // 1. แก้ไข Import Decimal
+// ในไฟล์: ./src/controllers/SaleController.ts
+
+import { PrismaClient, Prisma } from "../../generated/prisma"; 
 import type { SaleInterface } from '../interface/SaleInterface'; 
+import { Decimal } from 'decimal.js'; // 💡 เพิ่มการ Import Decimal สำหรับใช้ในการตรวจสอบ Type Guard ที่ดีกว่า (ถ้ายังติด Error ให้นำออก)
 
 const prisma = new PrismaClient();
 
@@ -31,64 +34,37 @@ interface RequestContext {
     headers: RequestHeaders | (Partial<RequestHeaders> & { [key: string]: unknown }); 
 }
 
-// Type สำหรับ SaleDetail ที่ใช้ใน Controller ก่อนส่งให้ Prisma
+// Type สำหรับ SaleDetail ที่ใช้ใน Controller (ยังคงใช้ number เพื่อความง่ายในการคำนวณ)
 interface SaleDetailControllerData {
     bookId: string;
     qty: number;
-    price: number; // ใช้ number ในการคำนวณ
+    price: number; 
 }
-
-// 🎯 Type สำหรับผลลัพธ์จาก searchBook (Select fields)
-type BookSearchResult = {
-    id: string;
-    name: string;
-    isbn: string | null;
-    price: Prisma.Decimal; // เป็น Decimal ก่อนการ Map
-    qty: number;
-    image: string | null;
-    status: string;
-};
-
-// 🎯 Type สำหรับผลลัพธ์จาก tx.book.findMany ใน Transaction (Select fields)
-type BookTransactionResult = {
-    id: string;
-    qty: number;
-    price: Prisma.Decimal;
-    name: string;
-};
-
 
 // ----------------------------------------------------------------------
 
+// 💡 เพิ่ม Type Guard ที่ชัดเจนเพื่อจัดการ Prisma.Decimal
+function isPrismaDecimal(value: unknown): value is { toNumber: () => number } {
+    return typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as { toNumber: unknown }).toNumber === 'function';
+}
+
+
 const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary): Promise<string> => {
-    
-    if (!request) {
-        throw new Error('Request object is missing.');
-    }
-    
+    // ... (โค้ดนี้ถูกต้องแล้ว) ...
+    if (!request) { throw new Error('Request object is missing.'); }
     let authHeader: string | undefined | null = undefined;
-    
     const headers = request.headers;
     if (headers && 'get' in headers && typeof headers.get === 'function') {
         authHeader = headers.get('Authorization');
     } else if (headers) {
         authHeader = (headers as { authorization?: string, Authorization?: string }).authorization || (headers as { authorization?: string, Authorization?: string }).Authorization;
     }
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new Error('Authorization header is missing or malformed.');
-    }
-    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) { throw new Error('Authorization header is missing or malformed.'); }
     const token = authHeader.replace('Bearer ', '');
     const SECRET_KEY = process.env.JWT_SECRET || 'YOUR_JWT_SECRET_KEY'; 
-    
     try {
         const payload = await jwtLibrary.verify(token, SECRET_KEY); 
-        
-        if (!payload || !payload.id) {
-            throw new Error('Admin ID missing or token is invalid.');
-        }
-
+        if (!payload || !payload.id) { throw new Error('Admin ID missing or token is invalid.'); }
         return payload.id;
     } catch (jwtError: unknown) {
         const message = jwtError instanceof Error ? jwtError.message : 'Unknown JWT error';
@@ -104,7 +80,7 @@ export const SaleController = {
             const keyword = query.q || '';
             if (!keyword.trim()) return [];
 
-            // 💡 Cast Type ที่ได้จาก Prisma เพื่อให้ TypeScript รู้จัก
+            // 🎯 ลบ as BookSearchResult[] ออก เพื่อใช้ Type ที่ Prisma คืนมา
             const books = await prisma.book.findMany({
                 where: {
                     OR: [
@@ -118,19 +94,22 @@ export const SaleController = {
                     id: true,
                     name: true,
                     isbn: true,
-                    price: true, 
+                    price: true, // Prisma.Decimal
                     qty: true, 
                     image: true,
                     status: true, 
                 },
                 take: 10
-            }) as BookSearchResult[];
+            }); // 🎯 ไม่มีการ Cast Type ตรงนี้แล้ว
             
-            // 🎯 กำหนด Type ให้ book ใน map callback
-            const resultBooks = books.map((book: BookSearchResult) => { 
-                const priceAsNumber = (book.price as unknown as Decimal)?.toNumber ? 
-                                       (book.price as unknown as Decimal).toNumber() : 
-                                       book.price as number;
+            // 🎯 จัดการ Type Conversion ใน Map
+            const resultBooks = books.map((book) => { 
+                const priceValue = book.price as unknown;
+                
+                const priceAsNumber = isPrismaDecimal(priceValue) ? 
+                                       priceValue.toNumber() : 
+                                       priceValue as number; // Fallback to number if already converted
+                
                 return {
                     ...book,
                     price: priceAsNumber 
@@ -146,13 +125,13 @@ export const SaleController = {
     },
 
     searchMember: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
+        // ... (โค้ดนี้ถูกต้องแล้ว) ...
         try {
             const keyword = query.q;
             if (!keyword || keyword.trim() === '') {
                  set.status = 400;
                  return { message: 'Please provide a search query (phone or email).' };
             }
-            
             const member = await prisma.member.findFirst({
                 where: { 
                     OR: [
@@ -163,7 +142,6 @@ export const SaleController = {
                 },
                 select: { id: true, name: true, email: true, points: true, phone: true }
             });
-            
             if (!member) {
                 set.status = 404;
                 return { message: 'Member not found.' };
@@ -185,7 +163,6 @@ export const SaleController = {
         let adminIdFromAuth: string;
         try {
             adminIdFromAuth = await getAdminIdByToken(request, jwt); 
-
         } catch (authErr: unknown) {
             console.error('Authentication error:', authErr);
             set.status = 401;
@@ -200,25 +177,26 @@ export const SaleController = {
             const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const bookIds = items.map(item => item.bookId);
                 
-                // 💡 Cast Type ที่ได้จาก Prisma
+                // 🎯 ลบ as BookTransactionResult[] ออก
                 const booksInDb = await tx.book.findMany({ 
                     where: { id: { in: bookIds } },
-                    select: { id: true, qty: true, price: true, name: true }
-                }) as BookTransactionResult[];
+                    select: { id: true, qty: true, price: true, name: true } // price เป็น Prisma.Decimal
+                }); 
                 
                 let subtotal = 0;
                 const saleDetailsData: SaleDetailControllerData[] = [];
 
                 for (const item of items) {
-                    // 🎯 กำหนด Type ให้ b ใน find callback
-                    const book = booksInDb.find((b: BookTransactionResult) => b.id === item.bookId); 
+                    const book = booksInDb.find((b) => b.id === item.bookId); 
                     
                     if (!book) throw new Error(`Book with ID: ${item.bookId} not found`);
                     if (book.qty < item.qty) throw new Error(`Not enough stock for '${book.name}' (Available: ${book.qty})`);
                     
-                    const bookPrice = (book.price as unknown as Decimal)?.toNumber ? 
-                                      (book.price as unknown as Decimal).toNumber() : 
-                                      book.price as number;
+                    // 💡 การแปลง Prisma.Decimal ไปเป็น number อย่างปลอดภัย
+                    const bookPriceValue = book.price as unknown;
+                    const bookPrice = isPrismaDecimal(bookPriceValue) ? 
+                                      bookPriceValue.toNumber() : 
+                                      bookPriceValue as number;
                     
                     const itemSubtotal = bookPrice * item.qty;
                     subtotal += itemSubtotal;
@@ -230,7 +208,7 @@ export const SaleController = {
                     });
                 }
                 
-                // ... โค้ดส่วนอื่น ๆ ที่เกี่ยวข้องกับ Transaction ...
+                // ... (โค้ดคำนวณและตรวจสอบเงื่อนไขถูกต้องแล้ว) ...
                 const finalTotalFloat = subtotal - pointsToRedeem;
                 const finalTotal = parseFloat(finalTotalFloat.toFixed(2));
 
@@ -271,6 +249,8 @@ export const SaleController = {
                                 data: saleDetailsData.map(d => ({ 
                                     bookId: d.bookId,
                                     qty: d.qty,
+                                    // 🎯 แก้ไข: ใช้ d.price (number) มาสร้าง new Prisma.Decimal()
+                                    // ซึ่งช่วยแก้ Type Error ที่แจ้งว่า Type '{ price: number }' ใช้ไม่ได้
                                     price: new Prisma.Decimal(d.price) 
                                 })),
                             }
@@ -300,10 +280,10 @@ export const SaleController = {
                     finalReceipt.member.points = currentMemberPoints;
                 }
                 
-                const decimalToNumber = (val: Decimal | number | undefined | null) => 
-                    (val as unknown as Decimal)?.toNumber ? 
-                    (val as unknown as Decimal).toNumber() : 
-                    val as number;
+                const decimalToNumber = (val: Prisma.Decimal | number | undefined | null) => {
+                    const value = val as unknown;
+                    return isPrismaDecimal(value) ? value.toNumber() : value as number;
+                }
 
                 return { 
                     ...finalReceipt, 
