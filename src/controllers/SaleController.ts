@@ -5,7 +5,7 @@ import type { SaleInterface } from '../interface/SaleInterface';
 
 const prisma = new PrismaClient();
 
-// ⭐️ Type Definitions ที่จำเป็น (แก้ไขปัญหา 'Cannot find name') ⭐️
+// ⭐️ Type Definitions ที่จำเป็น ⭐️
 
 interface ResponseSet {
     status: number | string;
@@ -210,8 +210,8 @@ export const SaleController = {
                         price: bookPrice
                     });
                     
-                    // 🎯 ใช้ @ts-ignore เพื่อแก้ปัญหา Type Inference ในบรรทัดนี้
-                    // @ts-ignore
+                    // ✅ ใช้ @ts-expect-error เพื่อให้ผ่าน ESLint ban-ts-comment rule
+                    // @ts-expect-error: Prisma.Decimal constructor output conflicts with Prisma's inferred input type for price field.
                     saleDetailsPrismaData.push({
                         bookId: item.bookId,
                         qty: item.qty,
