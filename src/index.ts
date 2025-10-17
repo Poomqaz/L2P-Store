@@ -1,7 +1,6 @@
 import { Elysia, type Context } from "elysia"; 
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger'; 
-// 🚨 ลบ { staticPlugin } ออก
 import { jwt } from '@elysiajs/jwt'; 
 
 import CustomerController from "./controllers/CustomerController"; 
@@ -15,7 +14,7 @@ import { SaleController } from "./controllers/SaleController";
 import { SaleDetailController } from "./controllers/SaleDetailController";
 import { ReviewController } from "./controllers/ReviewController";
 
-// ⭐️ กำหนด Type ที่ชัดเจนสำหรับ Context ที่ใช้ใน checkSignIn
+// Type ที่ชัดเจนสำหรับ Context ที่ใช้ใน checkSignIn
 type AuthContext = Context & {
     jwt: {
         verify: (token: string, secret: string) => Promise<{ [key: string]: string | number } | false>;
@@ -25,7 +24,7 @@ type AuthContext = Context & {
     }
 };
 
-const checkSignIn = async ({ jwt, request, set }: AuthContext) => { // 🎯 แก้ไข: ใช้ AuthContext แทน any
+const checkSignIn = async ({ jwt, request, set }: AuthContext) => { 
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     set.status = 401;
@@ -39,7 +38,6 @@ const checkSignIn = async ({ jwt, request, set }: AuthContext) => { // 🎯 แ�
     return 'Unauthorized';
   }
 
-  // ใช้ secret ที่ถูกต้อง (ตามที่คุณกำหนดใน .use(jwt))
   const payload = await jwt.verify(token, 'secret'); 
   if (!payload) {
     set.status = 401;
@@ -54,6 +52,7 @@ const app = new Elysia()
     name: 'jwt',
     secret: 'secret'
   }))
+
 
   .group('/api/dashboard', app => app
     .get('/list', DashboardController.list, {beforeHandle: checkSignIn})
@@ -253,9 +252,10 @@ const app = new Elysia()
       price: number
     }
   }) => {
-    const id = params.id;
-    const name = body.name;
-    const price = body.price;
+    // 🎯 แก้ไข: ลบการประกาศตัวแปรที่ไม่ถูกใช้
+    // const id = params.id; 
+    // const name = body.name; 
+    // const price = body.price; 
 
     return { message: 'success' }
   })
@@ -275,23 +275,20 @@ const app = new Elysia()
       file: File
     }
   }) => {
-    // โค้ดนี้ใช้ Bun.write ซึ่งอาจไม่ทำงานบน Vercel (ใช้ Node.js)
-    // แต่ปล่อยไว้ตามโครงสร้างเดิม
-    // Bun.write('uploads/' + body.file.name, body.file);
+    Bun.write('uploads/' + body.file.name, body.file);
     return { message: 'uploaded' }
   })
 
   // write file
   .get('/write-file', () => {
-    // Bun.write('test.txt', 'Hello World')
+    Bun.write('test.txt', 'Hello World')
     return { message: 'success' }
   })
 
   // read file
   .get('/read-file', () => {
-    // const file = Bun.file('test.txt')
-    // return file.text();
-    return { message: 'read file not supported on Vercel' }
+    const file = Bun.file('test.txt')
+    return file.text();
   })
   .get('/public/uploads/:fileName', ({ params}: {
     params: {
