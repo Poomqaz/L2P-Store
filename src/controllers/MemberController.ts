@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
 // 💡 แก้ไข: โปรดตรวจสอบว่าคุณติดตั้ง @types/nodemailer แล้ว: npm install @types/nodemailer --save-dev
 
 // ----------------------------------------------------------------------
-// ⭐️ Type Definitions ที่แก้ไขและปรับปรุง (ลดการใช้ 'any') ⭐️
+// ⭐️ Type Definitions ที่แก้ไขและปรับปรุง ⭐️
 // ----------------------------------------------------------------------
 
 // Type สำหรับพารามิเตอร์ 'request' ในบริบทที่ใช้ Headers/Response (เช่น Bun/Elysia)
@@ -21,8 +21,8 @@ interface RequestType {
 interface JwtPayload {
     id: string | number;
     username?: string;
-    // 💡 แก้ไข: ใช้ Record<string, unknown> แทน any เพื่อลดความเสี่ยง
-    [key: string]: unknown; // รองรับ field อื่นๆ ที่ไม่รู้ Type
+    // ใช้ unknown เพื่อป้องกันการใช้ 'any' โดยตรง
+    [key: string]: unknown;
 }
 
 interface JwtInterface {
@@ -41,8 +41,8 @@ interface UploadedFile {
     name: string;
     size: number;
     type: string;
-    // 💡 แก้ไข: ใช้ Blob แทน any เพราะ Bun.write ยอมรับ Blob-like object
-    [key: string]: Blob | unknown; 
+    // 💡 แก้ไข: ใช้ unknown แทน any เพื่อให้ Type-safe ขึ้น
+    [key: string]: unknown; 
 }
 
 // Type สำหรับ Body ในฟังก์ชัน update
@@ -52,14 +52,13 @@ interface UpdateBody {
     address?: string;
     email?: string;
     password?: string;
-    profileImage?: UploadedFile | string; // อาจเป็น string ถ้าไม่ได้อัพโหลดรูปใหม่
+    profileImage?: UploadedFile | string;
 }
 
 // 💡 Type สำหรับ Error object ที่เราคาดหวังในการจับ err
 interface CustomError extends Error {
     message: string;
     status?: number;
-    // เพิ่ม field อื่นๆ ที่ error object อาจมี
 }
 
 
@@ -74,12 +73,11 @@ const transporter = nodemailer.createTransport({
 });
 
 // ----------------------------------------------------------------------
-// ⭐️ แก้ไข: ใช้ String() เพื่อบังคับให้ id เป็น string ก่อนส่งให้ Prisma ⭐️
+// ⭐️ Helper Function: ดึง Member ID จาก Token ⭐️
 // ----------------------------------------------------------------------
 const getMemberIdByToken = async (request: RequestType, jwt: JwtInterface): Promise<string> => {
     const authorizationHeader = request.headers.get('Authorization');
     if (!authorizationHeader) {
-        // โยน Error ที่จะถูกจับใน try/catch block
         throw new Error("Authorization header missing");
     }
     const token = authorizationHeader.replace('Bearer ', '');
@@ -92,10 +90,8 @@ const getMemberIdByToken = async (request: RequestType, jwt: JwtInterface): Prom
 export const MemberController = {
     signup: async ({ body }: { body: MemberInterface }) => {
         try {
-            // ... (โค้ด signup เดิม)
             const saltRounds = 10;
             const salt = await bcrypt.genSalt(saltRounds);
-
             const hashedPassword = await bcrypt.hash(body.password, salt);
 
             const existingMember = await prisma.member.findFirst({
@@ -138,7 +134,6 @@ export const MemberController = {
         jwt: JwtInterface
     }) => {
         try {
-            // ... (โค้ด signin เดิม)
             const member = await prisma.member.findUnique({
                 where: {
                     username: body.username,
@@ -146,6 +141,7 @@ export const MemberController = {
             });
 
             if (!member) {
+                // สมมติว่า New Response คือ Response ของ Web Framework (เช่น Bun/Elysia)
                 return new Response("Invalid username or password", { status: 401 });
             }
 
@@ -192,14 +188,10 @@ export const MemberController = {
             })
             return member
         } catch (err) {
-            // 💡 แก้ไข: ส่ง Error message ที่ชัดเจนขึ้น
             return { error: (err as CustomError).message || 'Failed to fetch member info.' };
         }
     },
 
-    // ----------------------------------------------------------------------
-    // ⭐️ แก้ไข Type ใน update (ใช้ Record<string, unknown> แทน any ใน updateData) ⭐️
-    // ----------------------------------------------------------------------
     update: async ({ body, jwt, request }: {
         body: UpdateBody,
         jwt: JwtInterface,
@@ -220,7 +212,7 @@ export const MemberController = {
             const data = body;
             const isFile = data.profileImage && typeof data.profileImage !== "string";
 
-            // Type Guard เพื่อให้ TypeScript รู้ว่า profileImage เป็น UploadedFile
+            // Type Guard: ถ้าเป็นไฟล์จริง ให้ใช้ as UploadedFile
             const profileImageFile = isFile
                 ? data.profileImage as UploadedFile
                 : null;
@@ -246,13 +238,13 @@ export const MemberController = {
                 }
                 
                 const newFilePath = path.join(uploadDir, profileImagename);
-                // 💡 การใช้ Bun.write(newFilePath, profileImageFile) ที่นี่อาจยังต้องมีการ cast
-                // หรือปรับ Type ของ profileImageFile ให้เป็น File/Blob ที่แน่นอน
-                // แต่ในตอนนี้เราใช้ Non-null assertion (!) และ rely on runtime environment
-                await Bun.write(newFilePath, profileImageFile as Blob); 
+                
+                // 🎯 แก้ไข Type Assertion: แปลงเป็น 'unknown' ก่อนแปลงเป็น 'Blob'
+                // เพื่อหลีกเลี่ยงข้อผิดพลาด Conversion overlap
+                await Bun.write(newFilePath, profileImageFile as unknown as Blob); 
             }
 
-            // 💡 แก้ไข: ใช้ Record<string, unknown> แทน Record<string, any>
+            // ใช้ Record<string, unknown> เพื่อให้ Type-safe และรองรับการส่งข้อมูลที่หลากหลาย
             const updateData: Record<string, unknown> = {
                 name: data.name,
                 phone: data.phone,
@@ -281,10 +273,10 @@ export const MemberController = {
             return { message: 'success', profileImage: updatedMember.profileImage };
         } catch (err) {
             console.error(err);
-            // 💡 แก้ไข: ใช้ CustomError ในการจัดการ catch block
             return { error: (err as CustomError).message || "An unexpected error occurred during update." };
         }
     },
+    
     checkDuplicate: async ({ body }: {
         body: {
         username: string;
@@ -292,7 +284,6 @@ export const MemberController = {
         phone: string;
         };
     }) => {
-        // ... (โค้ด checkDuplicate เดิม)
         try {
         const existingMember = await prisma.member.findFirst({
             where: {
@@ -367,7 +358,6 @@ export const MemberController = {
         },
         jwt: JwtInterface
     }) => {
-        // ... (โค้ด forgotPassword เดิม)
         try {
             const { email } = body;
 
@@ -444,7 +434,6 @@ export const MemberController = {
 
         } catch (error) {
             console.error('Error in resetPassword:', error); 
-            // 💡 แก้ไข: ใช้ CustomError ในการจัดการ catch block
             return { success: false, message: (error as CustomError).message || 'ไม่สามารถรีเซ็ตรหัสผ่านได้ หรือลิงก์หมดอายุแล้ว' };
         }
     },

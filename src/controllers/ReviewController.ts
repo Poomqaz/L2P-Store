@@ -1,9 +1,23 @@
 import { PrismaClient } from "../../generated/prisma";
-import { Prisma } from '@prisma/client';
-import { ReviewInterface } from "../interface/ReviewInterface";
+import type { ReviewInterface } from "../interface/ReviewInterface";
+
+// ⭐️ Type Definitions ที่แก้ไขแล้ว ⭐️
+
+// 1. Type สำหรับ Params ที่ใช้ใน listByBookId
+interface ListByBookIdParams {
+    bookId: string;
+    // 💡 แก้ไข: เพิ่ม Index Signature เพื่อให้เข้ากับ Record<string, unknown> constraint
+    [key: string]: unknown;
+}
+
+// 2. Generic Context Type ที่แก้ไข Type Constraint (ใช้ unknown แทน any)
+interface ContextType<TParams extends Record<string, unknown> = Record<string, string>> {
+    params: TParams;
+}
+
+// ----------------------------------------------------------------------
 
 const prisma = new PrismaClient();
-
 
 export const ReviewController = {
     submitReview: async ({ body }: { body: ReviewInterface }) => {
@@ -16,10 +30,8 @@ export const ReviewController = {
         }
 
         try {
-
             const [newReview, updatedBookStats] = await prisma.$transaction(async (tx) => {
                 
-                // บันทึก/อัปเดตรีวิว (ใช้ upsert)
                 const review = await tx.review.upsert({
                     where: {
                         bookId_memberId: { 
@@ -39,7 +51,6 @@ export const ReviewController = {
                     },
                 }); 
 
-                // คำนวณคะแนนเฉลี่ยใหม่
                 const reviews = await tx.review.findMany({
                     where: { bookId: bookId },
                     select: { rating: true }
@@ -48,16 +59,14 @@ export const ReviewController = {
                 const reviewCount = reviews.length;
                 const totalRating = reviews.reduce((sum, r) => sum + r.rating, 0);
                 
-                // คำนวณและปัดเศษ
                 const averageRating = reviewCount > 0 
                     ? parseFloat((totalRating / reviewCount).toFixed(1)) 
                     : 0.0; 
 
-                // อัปเดต Book Model
                 const updatedBook = await tx.book.update({
                     where: { id: bookId },
                     data: {
-                        averageRating: averageRating,
+                        averageRating: averageRating, 
                         reviewCount: reviewCount,
                     },
                     select: {
@@ -94,13 +103,14 @@ export const ReviewController = {
             };
         }
     },
-    listByBookId: async (c: any) => { // c คือ Context Object ของ Elysia
-        const bookId = c.params.bookId as string; // ดึงค่า bookId จาก params เท่านั้น
+    
+    // โค้ดนี้ใช้งานได้แล้วโดยไม่มี Error
+    listByBookId: async (c: ContextType<ListByBookIdParams>) => { 
+        const bookId = c.params.bookId as string; 
         
         try {
             const reviews = await prisma.review.findMany({
                 where: {
-                    // ใช้ bookId ที่ดึงมาจาก params แล้วเท่านั้น
                     bookId: bookId 
                 },
                 select: {
@@ -120,20 +130,18 @@ export const ReviewController = {
                 }
             })
 
-            // นำข้อมูล member.name มาใส่ใน memberName และปรับโครงสร้าง
             const reviewsWithMemberName = reviews.map(review => ({
                 id: review.id,
                 rating: review.rating,
                 comment: review.comment,
                 memberId: review.memberId,
-                createdAt: review.createdAt.toISOString(), // แปลง DateTime ให้เป็น String
-                memberName: review.member.name,
+                createdAt: review.createdAt.toISOString(), 
+                memberName: review.member?.name as string || 'Guest', 
             }));
 
             return reviewsWithMemberName;
         } catch (error) {
             console.error("Error fetching reviews by book ID:", error);
-            // โยน error หรือจัดการตามสไตล์ของ Elysia
             throw new Error("Failed to retrieve reviews."); 
         }
     }

@@ -1,30 +1,61 @@
-import { PrismaClient, Prisma } from "../../generated/prisma"; 
-import { SaleInterface } from '../interface/SaleInterface'; 
-import { Sale } from "../../generated/prisma/client"; 
+import { PrismaClient, Prisma } from "../../generated/prisma";
+import type { SaleInterface } from '../interface/SaleInterface'; 
+import { Decimal } from "@prisma/client/runtime/library"; 
 
 const prisma = new PrismaClient();
 
-const getAdminIdByToken = async (request: any, jwtLibrary: any) => {
-    // ตรวจสอบ request object และ headers
+// ⭐️ Type Definitions ที่จำเป็น ⭐️
+
+interface ResponseSet {
+    status: number | string;
+}
+
+interface SearchQuery {
+    q?: string;
+}
+
+interface JwtPayload {
+    id: string;
+}
+
+interface JwtLibrary {
+    verify: (token: string, secret: string) => Promise<JwtPayload | null>;
+}
+
+type RequestHeaders = {
+    get: (key: string) => string | undefined;
+    authorization?: string; 
+    Authorization?: string;
+};
+
+interface RequestContext {
+    headers: RequestHeaders | (Partial<RequestHeaders> & { [key: string]: unknown }); 
+}
+
+// Type สำหรับ SaleDetail ที่ใช้ใน Controller ก่อนส่งให้ Prisma
+interface SaleDetailControllerData {
+    bookId: string;
+    qty: number;
+    price: number; // ใช้ number ในการคำนวณ
+}
+
+// ----------------------------------------------------------------------
+
+const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary): Promise<string> => {
+    
     if (!request) {
         throw new Error('Request object is missing.');
     }
     
-    let authHeader;
+    let authHeader: string | undefined | null = undefined;
     
-    // ลองหาค่า Authorization header จากหลายๆ แหล่ง (โค้ดเดิมดีอยู่แล้ว)
-    if (request.headers && typeof request.headers.get === 'function') {
-        authHeader = request.headers.get('Authorization');
-    } else if (request.headers && request.headers.authorization) {
-        authHeader = request.headers.authorization;
-    } else if (request.headers && request.headers.Authorization) {
-        authHeader = request.headers.Authorization;
-    } else {
-        console.log('Available request properties:', Object.keys(request));
-        console.log('Headers object:', request.headers);
-        throw new Error('Cannot access Authorization header. Headers object might be in different format.');
+    const headers = request.headers;
+    if (headers && 'get' in headers && typeof headers.get === 'function') {
+        authHeader = headers.get('Authorization');
+    } else if (headers) {
+        authHeader = (headers as { authorization?: string, Authorization?: string }).authorization || (headers as { authorization?: string, Authorization?: string }).Authorization;
     }
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         throw new Error('Authorization header is missing or malformed.');
     }
@@ -33,24 +64,23 @@ const getAdminIdByToken = async (request: any, jwtLibrary: any) => {
     const SECRET_KEY = process.env.JWT_SECRET || 'YOUR_JWT_SECRET_KEY'; 
     
     try {
-        // *** หมายเหตุ: ถ้าใช้ Elysia/Bun อาจต้องปรับวิธีเรียก jwtLibrary.verify ให้ตรงกับรูปแบบที่ใช้
-        const payload: any = await jwtLibrary.verify(token, SECRET_KEY); 
+        const payload = await jwtLibrary.verify(token, SECRET_KEY); 
         
-        if (!payload.id) {
-            throw new Error('Admin ID missing in token payload.');
+        if (!payload || !payload.id) {
+            throw new Error('Admin ID missing or token is invalid.');
         }
 
-        return payload.id as string;
-    } catch (jwtError: any) {
-        throw new Error(`JWT verification failed: ${jwtError.message}`);
+        return payload.id;
+    } catch (jwtError: unknown) {
+        const message = jwtError instanceof Error ? jwtError.message : 'Unknown JWT error';
+        throw new Error(`JWT verification failed: ${message}`);
     }
 }
 
 
 export const SaleController = {
 
-    // 1. ค้นหาสินค้าด้วยชื่อหรือ ISBN 
-    searchBook: async ({ query, set }: { query: { q?: string }, set: any }) => {
+    searchBook: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
         try {
             const keyword = query.q || '';
             if (!keyword.trim()) return [];
@@ -68,23 +98,35 @@ export const SaleController = {
                     id: true,
                     name: true,
                     isbn: true,
-                    price: true,
+                    price: true, 
                     qty: true, 
                     image: true,
                     status: true, 
                 },
                 take: 10
             });
-            return books; 
+            
+            // 🎯 แก้ไข: กำหนด Type ของ price ให้เป็น number ใน Response อย่างชัดเจน
+            // และใช้ Type Guard ในการแปลง Decimal เป็น Number
+            const resultBooks = books.map(book => {
+                const priceAsNumber = (book.price as unknown as { toNumber: () => number })?.toNumber ? 
+                                       (book.price as unknown as { toNumber: () => number }).toNumber() : 
+                                       book.price as number;
+                return {
+                    ...book,
+                    price: priceAsNumber // Price ถูกส่งออกเป็น Number
+                };
+            });
 
-        } catch (err) {
+            return resultBooks;
+
+        } catch (e: unknown) { // 💡 แก้ไข: ลบ 'error' ที่ไม่ใช้งาน
             set.status = 500;
             return { error: 'An error occurred while searching for books.' };
         }
     },
 
-    // 2. ค้นหาสมาชิกด้วยเบอร์โทรศัพท์หรืออีเมล
-    searchMember: async ({ query, set }: { query: { q?: string }, set: any }) => {
+    searchMember: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
         try {
             const keyword = query.q;
             if (!keyword || keyword.trim() === '') {
@@ -108,115 +150,87 @@ export const SaleController = {
                 return { message: 'Member not found.' };
             }
             return member;
-        } catch (err) {
+        } catch (e: unknown) { // 💡 แก้ไข: ลบ 'error' ที่ไม่ใช้งาน
             set.status = 500;
             return { error: 'An error occurred while searching for the member.' };
         }
     },
 
-    /**
-     * 3. สร้างรายการขาย (บันทึก, ตัดสต็อก, จัดการแต้ม, คำนวณเงินทอน)
-     * @param req Request Object จาก Framework ที่ใช้
-     * @param jwt ไลบรารี JWT ที่ถูกส่งเข้ามา (ถ้าใช้ Framework ที่ฉีดให้)
-     */
-    create: async ({ body, set, request, jwt }: { body: SaleInterface, set: any, request: any, jwt: any }) => {
+    create: async ({ body, set, request, jwt }: { 
+        body: SaleInterface, 
+        set: ResponseSet, 
+        request: RequestContext, 
+        jwt: JwtLibrary 
+    }) => {
         
         let adminIdFromAuth: string;
         try {
-            // 1. ดึง Admin ID จาก Request Header โดยใช้ Token
             adminIdFromAuth = await getAdminIdByToken(request, jwt); 
 
-        } catch (authErr: any) {
+        } catch (authErr: unknown) {
             console.error('Authentication error:', authErr);
             set.status = 401;
-            // 🛑 ส่ง Error 401 Unauthorized พร้อมข้อความที่ชัดเจน
-            return { message: `Unauthorized. ${authErr.message || 'Token verification failed.'}` };
+            const message = authErr instanceof Error ? authErr.message : 'Unknown authentication error';
+            return { message: `Unauthorized. ${message}` };
         }
 
         try {
-            // 2. Destructuring ข้อมูล
             const { memberId, paymentMethod, items, pointsToRedeem = 0, cashPaid } = body;
+            const cashPaidFloat = parseFloat(cashPaid.toFixed(2));
 
             const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const bookIds = items.map(item => item.bookId);
-                
-                // ดึงข้อมูลหนังสือที่เกี่ยวข้องทั้งหมด
                 const booksInDb = await tx.book.findMany({ 
                     where: { id: { in: bookIds } },
                     select: { id: true, qty: true, price: true, name: true }
                 }); 
                 
                 let subtotal = 0;
-                const saleDetailsData = [];
+                const saleDetailsData: SaleDetailControllerData[] = [];
 
-                // 2.1 ตรวจสอบสต็อกและคำนวณยอดรวมเบื้องต้น
                 for (const item of items) {
                     const book = booksInDb.find(b => b.id === item.bookId); 
                     
                     if (!book) throw new Error(`Book with ID: ${item.bookId} not found`);
                     if (book.qty < item.qty) throw new Error(`Not enough stock for '${book.name}' (Available: ${book.qty})`);
                     
-                    // คำนวณยอดรวมก่อนหักส่วนลด
-                    const itemSubtotal = book.price * item.qty;
+                    const bookPrice = (book.price as unknown as { toNumber: () => number })?.toNumber ? 
+                                      (book.price as unknown as { toNumber: () => number }).toNumber() : 
+                                      book.price as number;
+                    
+                    const itemSubtotal = bookPrice * item.qty;
                     subtotal += itemSubtotal;
 
-                    // 💡 NOTE: ลบฟิลด์ 'subtotal' ออก ถ้า SaleDetail model ไม่มีฟิลด์นี้
                     saleDetailsData.push({
                         bookId: item.bookId,
                         qty: item.qty,
-                        price: book.price
-                        // subtotal: itemSubtotal, // 💡 ถ้า SaleDetail Schema มี subtotal ให้ใส่กลับเข้ามา
+                        price: bookPrice
                     });
                 }
 
-                // 2.2 จัดการส่วนลดแต้มสมาชิก
-                const discountAmount = pointsToRedeem; 
-                const finalTotalFloat = subtotal - discountAmount;
-                const finalTotal = parseFloat(finalTotalFloat.toFixed(2)); // ยอดรวมสุทธิ (เป็น Float)
+                const finalTotalFloat = subtotal - pointsToRedeem;
+                const finalTotal = parseFloat(finalTotalFloat.toFixed(2));
 
-                // 2.3 คำนวณเงินทอนและตรวจสอบเงินที่จ่าย
-                // ใช้ finalTotal แทน finalTotalFloat เพื่อให้ถูกต้องกับทศนิยม 2 ตำแหน่ง
-                const change = cashPaid - finalTotal; 
+                const change = cashPaidFloat - finalTotal; 
                 if (change < -0.01) { 
-                    throw new Error(`Insufficient payment. Total due: ${finalTotal.toFixed(2)}, Paid: ${cashPaid.toFixed(2)}.`);
+                    throw new Error(`Insufficient payment. Total due: ${finalTotal.toFixed(2)}, Paid: ${cashPaidFloat.toFixed(2)}.`);
                 }
                 
-                // 2.4 จัดการแต้มสมาชิก (ใช้ transaction)
-                // คำนวณแต้มที่ได้รับ: สมมติว่าทุกๆ 100 บาท ได้ 1 แต้ม (จาก finalTotal)
                 const pointsEarned = memberId ? Math.floor(finalTotal / 100) : 0; 
                 let updatedMember = null;
                 
                 if (memberId) {
-                    // ตรวจสอบแต้มที่มีอยู่ก่อนอัปเดตเพื่อป้องกันการใช้แต้มเกิน
-                    const memberRecord = await tx.member.findUnique({
-                        where: { id: memberId },
-                        select: { points: true }
-                    });
+                    const memberRecord = await tx.member.findUnique({ where: { id: memberId }, select: { points: true } });
+                    if (!memberRecord) { throw new Error(`Member ID: ${memberId} not found.`); }
+                    if (memberRecord.points < pointsToRedeem) { throw new Error(`Insufficient member points. Available: ${memberRecord.points || 0}, Used: ${pointsToRedeem}.`); }
 
-                    if (!memberRecord) {
-                         throw new Error(`Member ID: ${memberId} not found.`);
-                    }
-                    if (memberRecord.points < pointsToRedeem) {
-                         throw new Error(`Insufficient member points. Available: ${memberRecord?.points || 0}, Used: ${pointsToRedeem}.`);
-                    }
-
-                    // *** 💥 ส่วนที่แก้ไขเพื่อแก้ปัญหา Argument points: Expected Int, provided Object ***
                     const netPointChange = pointsEarned - pointsToRedeem;
-                    const updateData = netPointChange > 0
-                        ? { increment: netPointChange }
-                        : { decrement: Math.abs(netPointChange) };
                     
                     if (netPointChange !== 0) {
-                        updatedMember = await tx.member.update({
-                            where: { id: memberId },
-                            data: { 
-                                points: updateData // ✅ ใช้ Object ที่มี increment หรือ decrement เพียงตัวเดียว
-                            },
-                            select: { points: true } 
-                        });
+                        const updateData = netPointChange > 0 ? { increment: netPointChange } : { decrement: Math.abs(netPointChange) };
+                        updatedMember = await tx.member.update({ where: { id: memberId }, data: { points: updateData }, select: { points: true } });
                     } else {
-                        // ถ้าแต้มสุทธิเป็น 0 ให้ใช้ข้อมูลเดิมเพื่อไม่ update
-                         updatedMember = memberRecord; 
+                        updatedMember = memberRecord; 
                     }
                 }
 
@@ -226,13 +240,18 @@ export const SaleController = {
                         adminId: adminIdFromAuth, 
                         memberId, 
                         paymentMethod,
-                        total: finalTotal, // ใช้ finalTotal ที่เป็น Float/Decimal
-                        cashPaid: cashPaid,
-                        change: change > 0 ? parseFloat(change.toFixed(2)) : 0, // ปัดเศษเงินทอน
+                        total: finalTotal,
+                        cashPaid: cashPaidFloat,
+                        change: change > 0 ? parseFloat(change.toFixed(2)) : 0, 
                         pointUsed: pointsToRedeem,
                         details: {
                             createMany: {
-                                data: saleDetailsData.map(d => ({ ...d, saleId: undefined })),
+                                // 🎯 แก้ไข: โค้ดนี้ปลอดภัยและเข้ากันได้กับ Prisma.SaleDetailCreateManySaleInput แล้ว
+                                data: saleDetailsData.map(d => ({ 
+                                    bookId: d.bookId,
+                                    qty: d.qty,
+                                    price: new Prisma.Decimal(d.price) 
+                                })),
                             }
                         }
                     }
@@ -256,32 +275,36 @@ export const SaleController = {
                     }
                 });
                 
-                // อัปเดตแต้มสมาชิกใหม่ใน object ที่จะส่งกลับ
-                // ใช้แต้มที่อัปเดตแล้วจาก updatedMember หรือแต้มเดิมถ้าไม่มีการเปลี่ยนแปลง
                 const currentMemberPoints = updatedMember?.points ?? finalReceipt?.member?.points ?? 0;
 
                 if (finalReceipt?.member) {
-                    // หากมีการอัปเดตแต้ม (updatedMember ไม่เป็น null)
                     finalReceipt.member.points = currentMemberPoints;
                 }
                 
+                const decimalToNumber = (val: Decimal | number | undefined | null) => 
+                    (val as unknown as { toNumber: () => number })?.toNumber ? 
+                    (val as unknown as { toNumber: () => number }).toNumber() : 
+                    val as number;
+
                 return { 
                     ...finalReceipt, 
+                    total: decimalToNumber(finalReceipt?.total),
+                    cashPaid: decimalToNumber(finalReceipt?.cashPaid),
+                    change: decimalToNumber(finalReceipt?.change),
+                    pointUsed: decimalToNumber(finalReceipt?.pointUsed),
                     earnedPoints: pointsEarned,
                     newPoints: currentMemberPoints
                 };
             });
 
             set.status = 201;
-            return { 
-                message: "Sale successful", 
-                data: result 
-            };
+            return { message: "Sale successful", data: result };
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Transaction error:', err);
-            const errorMessage = err.message || 'An unexpected error occurred.';
-            // จัดการ Error Code ตามประเภทของ Error
+            
+            const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
+            
             if (errorMessage.includes('not found') || errorMessage.includes('stock') || errorMessage.includes('points') || errorMessage.includes('payment') || errorMessage.includes('token')) {
                 set.status = 400; 
             } else {
