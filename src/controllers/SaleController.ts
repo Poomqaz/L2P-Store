@@ -2,13 +2,14 @@
 
 import { PrismaClient, Prisma } from "../../generated/prisma"; 
 import type { SaleInterface } from '../interface/SaleInterface'; 
-import { Decimal } from 'decimal.js'; // 💡 เพิ่มการ Import Decimal สำหรับใช้ในการตรวจสอบ Type Guard ที่ดีกว่า (ถ้ายังติด Error ให้นำออก)
+// ❌ บรรทัดนี้ถูกลบทิ้งไปแล้ว: import { Decimal } from 'decimal.js'; 
 
 const prisma = new PrismaClient();
 
 // ⭐️ Type Definitions ที่จำเป็น ⭐️
 
 interface ResponseSet {
+// ... (โค้ด Type Definitions เหมือนเดิม) ...
     status: number | string;
 }
 
@@ -43,14 +44,14 @@ interface SaleDetailControllerData {
 
 // ----------------------------------------------------------------------
 
-// 💡 เพิ่ม Type Guard ที่ชัดเจนเพื่อจัดการ Prisma.Decimal
+// 💡 Type Guard ที่ใช้จัดการ Prisma.Decimal โดยไม่พึ่งพาการ Import อื่น
 function isPrismaDecimal(value: unknown): value is { toNumber: () => number } {
     return typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as { toNumber: unknown }).toNumber === 'function';
 }
 
 
 const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary): Promise<string> => {
-    // ... (โค้ดนี้ถูกต้องแล้ว) ...
+// ... (โค้ดส่วนนี้เหมือนเดิม) ...
     if (!request) { throw new Error('Request object is missing.'); }
     let authHeader: string | undefined | null = undefined;
     const headers = request.headers;
@@ -80,7 +81,6 @@ export const SaleController = {
             const keyword = query.q || '';
             if (!keyword.trim()) return [];
 
-            // 🎯 ลบ as BookSearchResult[] ออก เพื่อใช้ Type ที่ Prisma คืนมา
             const books = await prisma.book.findMany({
                 where: {
                     OR: [
@@ -100,7 +100,7 @@ export const SaleController = {
                     status: true, 
                 },
                 take: 10
-            }); // 🎯 ไม่มีการ Cast Type ตรงนี้แล้ว
+            });
             
             // 🎯 จัดการ Type Conversion ใน Map
             const resultBooks = books.map((book) => { 
@@ -125,7 +125,6 @@ export const SaleController = {
     },
 
     searchMember: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
-        // ... (โค้ดนี้ถูกต้องแล้ว) ...
         try {
             const keyword = query.q;
             if (!keyword || keyword.trim() === '') {
@@ -177,7 +176,6 @@ export const SaleController = {
             const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const bookIds = items.map(item => item.bookId);
                 
-                // 🎯 ลบ as BookTransactionResult[] ออก
                 const booksInDb = await tx.book.findMany({ 
                     where: { id: { in: bookIds } },
                     select: { id: true, qty: true, price: true, name: true } // price เป็น Prisma.Decimal
@@ -249,8 +247,7 @@ export const SaleController = {
                                 data: saleDetailsData.map(d => ({ 
                                     bookId: d.bookId,
                                     qty: d.qty,
-                                    // 🎯 แก้ไข: ใช้ d.price (number) มาสร้าง new Prisma.Decimal()
-                                    // ซึ่งช่วยแก้ Type Error ที่แจ้งว่า Type '{ price: number }' ใช้ไม่ได้
+                                    // 🎯 ใช้ new Prisma.Decimal(d.price) ซึ่งถูกต้องตาม Type ของ Prisma
                                     price: new Prisma.Decimal(d.price) 
                                 })),
                             }
