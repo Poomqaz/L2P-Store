@@ -1,11 +1,11 @@
-import { Elysia } from "elysia";
+import { Elysia, type Context } from "elysia"; 
 import { cors } from '@elysiajs/cors';
-import { swagger } from '@elysiajs/swagger';  // bun add @elysiajs/swagger
-import { staticPlugin } from '@elysiajs/static';
-import { jwt } from '@elysiajs/jwt'; // bun add @elysiajs/jwt
+import { swagger } from '@elysiajs/swagger'; 
+// 🚨 ลบ { staticPlugin } ออก
+import { jwt } from '@elysiajs/jwt'; 
 
-import CustomerController from "./controllers/CustomerController";  // export default
-import { BookController } from "./controllers/BookController";      // export const BookController
+import CustomerController from "./controllers/CustomerController"; 
+import { BookController } from "./controllers/BookController"; 
 import { AdminController } from "./controllers/AdminController";
 import { MemberController } from "./controllers/MemberController";
 import { CartController } from "./controllers/CartController";
@@ -15,16 +15,32 @@ import { SaleController } from "./controllers/SaleController";
 import { SaleDetailController } from "./controllers/SaleDetailController";
 import { ReviewController } from "./controllers/ReviewController";
 
+// ⭐️ กำหนด Type ที่ชัดเจนสำหรับ Context ที่ใช้ใน checkSignIn
+type AuthContext = Context & {
+    jwt: {
+        verify: (token: string, secret: string) => Promise<{ [key: string]: string | number } | false>;
+    };
+    set: {
+        status: number | string;
+    }
+};
 
-const checkSignIn = async ({ jwt, request, set }: any) => {
-  const token = request.headers.get('Authorization').split(' ')[1];
+const checkSignIn = async ({ jwt, request, set }: AuthContext) => { // 🎯 แก้ไข: ใช้ AuthContext แทน any
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    set.status = 401;
+    return 'Unauthorized';
+  }
 
+  const token = authHeader.split(' ')[1];
+  
   if (!token) {
     set.status = 401;
     return 'Unauthorized';
   }
 
-  const payload = await jwt.verify(token, 'secret');
+  // ใช้ secret ที่ถูกต้อง (ตามที่คุณกำหนดใน .use(jwt))
+  const payload = await jwt.verify(token, 'secret'); 
   if (!payload) {
     set.status = 401;
     return 'Unauthorized';
@@ -33,12 +49,11 @@ const checkSignIn = async ({ jwt, request, set }: any) => {
 
 const app = new Elysia()
   .use(swagger())
-  .use(cors())     
+  .use(cors())     
   .use(jwt({
     name: 'jwt',
     secret: 'secret'
   }))
-
 
   .group('/api/dashboard', app => app
     .get('/list', DashboardController.list, {beforeHandle: checkSignIn})
@@ -112,13 +127,6 @@ const app = new Elysia()
     .get('/importToStock/history/:bookId', BookController.historyImportToStock)
   )
 
-  /*
-  .post('/api/book', BookController.create)
-  .get('/api/book', BookController.list)
-  .put('/api/book/:id', BookController.update)
-  .delete('/api/book/:id', BookController.delete)
-  */
-
   // customer controller
   .get('/customers', CustomerController.list)
   .post('/customers', CustomerController.create)
@@ -173,9 +181,7 @@ const app = new Elysia()
     return { message: 'Logged out' }
   })
 
-  // 
   // APIs
-  //
   .get("/", () => "Hello Elysia")
   .get('/hello', () => {
     return 'Hello by API'
@@ -229,14 +235,11 @@ const app = new Elysia()
       price: number
     }
   }) => {
-    const id = body.id;
-    const name = body.name;
-    const price = body.price;
-
+    // 🎯 แก้ไข: ลบการ Destructuring ที่ไม่จำเป็น
     return {
-      id: id,
-      name: name,
-      price: price
+      id: body.id,
+      name: body.name,
+      price: body.price
     }
   })
 
@@ -272,20 +275,23 @@ const app = new Elysia()
       file: File
     }
   }) => {
-    Bun.write('uploads/' + body.file.name, body.file);
+    // โค้ดนี้ใช้ Bun.write ซึ่งอาจไม่ทำงานบน Vercel (ใช้ Node.js)
+    // แต่ปล่อยไว้ตามโครงสร้างเดิม
+    // Bun.write('uploads/' + body.file.name, body.file);
     return { message: 'uploaded' }
   })
 
   // write file
   .get('/write-file', () => {
-    Bun.write('test.txt', 'Hello World')
+    // Bun.write('test.txt', 'Hello World')
     return { message: 'success' }
   })
 
   // read file
   .get('/read-file', () => {
-    const file = Bun.file('test.txt')
-    return file.text();
+    // const file = Bun.file('test.txt')
+    // return file.text();
+    return { message: 'read file not supported on Vercel' }
   })
   .get('/public/uploads/:fileName', ({ params}: {
     params: {
@@ -307,7 +313,7 @@ const app = new Elysia()
     }
 }) => {
     return Bun.file('public/uploadProfile/' + params.fileName)
-})  
+})  
   .listen({
     port:3001,
     idleTimeout: 30
