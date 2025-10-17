@@ -6,6 +6,7 @@ import type { SaleInterface } from '../interface/SaleInterface';
 const prisma = new PrismaClient();
 
 // ⭐️ Type Definitions ที่จำเป็น ⭐️
+// ... (RequestContext, JwtLibrary, ResponseSet, SearchQuery, JwtPayload เหมือนเดิม) ...
 
 interface ResponseSet {
     status: number | string;
@@ -47,7 +48,6 @@ function isPrismaDecimal(value: unknown): value is { toNumber: () => number } {
     return typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as { toNumber: unknown }).toNumber === 'function';
 }
 
-
 const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary): Promise<string> => {
     
     if (!request) { throw new Error('Request object is missing.'); }
@@ -80,7 +80,7 @@ const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary
 
 
 export const SaleController = {
-
+    // ... (searchBook และ searchMember เหมือนเดิม) ...
     searchBook: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
         try {
             const keyword = query.q || '';
@@ -210,8 +210,8 @@ export const SaleController = {
                         price: bookPrice
                     });
                     
-                    // 🎯 แก้ปัญหา ESLint/Type Check ด้วย @ts-ignore
-                    // @ts-ignore: Prisma.Decimal is correctly assigned here but conflicts with auto-generated type due to Decimal library usage.
+                    // 🎯 ใช้ @ts-ignore เพื่อแก้ปัญหา Type Inference ในบรรทัดนี้
+                    // @ts-ignore
                     saleDetailsPrismaData.push({
                         bookId: item.bookId,
                         qty: item.qty,
@@ -256,7 +256,7 @@ export const SaleController = {
                         pointUsed: pointsToRedeem,
                         details: {
                             createMany: {
-                                // 🎯 ใช้ตัวแปรที่กำหนด Type ถูกต้องแล้ว
+                                // 🎯 ใช้ตัวแปรที่ถูก Type แล้ว (saleDetailsPrismaData)
                                 data: saleDetailsPrismaData, 
                             }
                         }
