@@ -210,7 +210,7 @@ export const SaleController = {
                         price: bookPrice
                     });
                     
-                    // ✅ ใช้ @ts-expect-error เพื่อให้ผ่าน ESLint ban-ts-comment rule
+                    // ✅ ใช้ @ts-expect-error เพื่อให้ผ่าน ESLint และแก้ปัญหา Type Inference Conflict
                     // @ts-expect-error: Prisma.Decimal constructor output conflicts with Prisma's inferred input type for price field.
                     saleDetailsPrismaData.push({
                         bookId: item.bookId,
