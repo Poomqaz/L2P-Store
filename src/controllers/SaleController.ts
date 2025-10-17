@@ -5,8 +5,7 @@ import type { SaleInterface } from '../interface/SaleInterface';
 
 const prisma = new PrismaClient();
 
-// ⭐️ Type Definitions ที่จำเป็น ⭐️
-// ... (RequestContext, JwtLibrary, ResponseSet, SearchQuery, JwtPayload เหมือนเดิม) ...
+// ⭐️ Type Definitions ที่จำเป็น (แก้ไขปัญหา 'Cannot find name') ⭐️
 
 interface ResponseSet {
     status: number | string;
@@ -48,6 +47,7 @@ function isPrismaDecimal(value: unknown): value is { toNumber: () => number } {
     return typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as { toNumber: unknown }).toNumber === 'function';
 }
 
+
 const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary): Promise<string> => {
     
     if (!request) { throw new Error('Request object is missing.'); }
@@ -80,7 +80,7 @@ const getAdminIdByToken = async (request: RequestContext, jwtLibrary: JwtLibrary
 
 
 export const SaleController = {
-    // ... (searchBook และ searchMember เหมือนเดิม) ...
+
     searchBook: async ({ query, set }: { query: SearchQuery, set: ResponseSet }) => {
         try {
             const keyword = query.q || '';
@@ -256,7 +256,7 @@ export const SaleController = {
                         pointUsed: pointsToRedeem,
                         details: {
                             createMany: {
-                                // 🎯 ใช้ตัวแปรที่ถูก Type แล้ว (saleDetailsPrismaData)
+                                // ✅ ใช้ตัวแปร saleDetailsPrismaData ที่ถูก Type และเตรียมข้อมูล Decimal ไว้แล้ว
                                 data: saleDetailsPrismaData, 
                             }
                         }
