@@ -1,6 +1,5 @@
-import { PrismaClient, Prisma } from "../../generated/prisma";
+import { PrismaClient, Prisma, Decimal } from "@prisma/client"; // 1. แก้ไข Import Decimal
 import type { SaleInterface } from '../interface/SaleInterface'; 
-import { Decimal } from "@prisma/client/runtime/library"; 
 
 const prisma = new PrismaClient();
 
@@ -38,6 +37,26 @@ interface SaleDetailControllerData {
     qty: number;
     price: number; // ใช้ number ในการคำนวณ
 }
+
+// 🎯 Type สำหรับผลลัพธ์จาก searchBook (Select fields)
+type BookSearchResult = {
+    id: string;
+    name: string;
+    isbn: string | null;
+    price: Prisma.Decimal; // เป็น Decimal ก่อนการ Map
+    qty: number;
+    image: string | null;
+    status: string;
+};
+
+// 🎯 Type สำหรับผลลัพธ์จาก tx.book.findMany ใน Transaction (Select fields)
+type BookTransactionResult = {
+    id: string;
+    qty: number;
+    price: Prisma.Decimal;
+    name: string;
+};
+
 
 // ----------------------------------------------------------------------
 
@@ -85,6 +104,7 @@ export const SaleController = {
             const keyword = query.q || '';
             if (!keyword.trim()) return [];
 
+            // 💡 Cast Type ที่ได้จาก Prisma เพื่อให้ TypeScript รู้จัก
             const books = await prisma.book.findMany({
                 where: {
                     OR: [
@@ -104,23 +124,22 @@ export const SaleController = {
                     status: true, 
                 },
                 take: 10
-            });
+            }) as BookSearchResult[];
             
-            // 🎯 แก้ไข: กำหนด Type ของ price ให้เป็น number ใน Response อย่างชัดเจน
-            // และใช้ Type Guard ในการแปลง Decimal เป็น Number
-            const resultBooks = books.map(book => {
-                const priceAsNumber = (book.price as unknown as { toNumber: () => number })?.toNumber ? 
-                                       (book.price as unknown as { toNumber: () => number }).toNumber() : 
+            // 🎯 กำหนด Type ให้ book ใน map callback
+            const resultBooks = books.map((book: BookSearchResult) => { 
+                const priceAsNumber = (book.price as unknown as Decimal)?.toNumber ? 
+                                       (book.price as unknown as Decimal).toNumber() : 
                                        book.price as number;
                 return {
                     ...book,
-                    price: priceAsNumber // Price ถูกส่งออกเป็น Number
+                    price: priceAsNumber 
                 };
             });
 
             return resultBooks;
 
-        } catch (e: unknown) { // 💡 แก้ไข: ลบ 'error' ที่ไม่ใช้งาน
+        } catch { 
             set.status = 500;
             return { error: 'An error occurred while searching for books.' };
         }
@@ -150,7 +169,7 @@ export const SaleController = {
                 return { message: 'Member not found.' };
             }
             return member;
-        } catch (e: unknown) { // 💡 แก้ไข: ลบ 'error' ที่ไม่ใช้งาน
+        } catch { 
             set.status = 500;
             return { error: 'An error occurred while searching for the member.' };
         }
@@ -180,22 +199,25 @@ export const SaleController = {
 
             const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const bookIds = items.map(item => item.bookId);
+                
+                // 💡 Cast Type ที่ได้จาก Prisma
                 const booksInDb = await tx.book.findMany({ 
                     where: { id: { in: bookIds } },
                     select: { id: true, qty: true, price: true, name: true }
-                }); 
+                }) as BookTransactionResult[];
                 
                 let subtotal = 0;
                 const saleDetailsData: SaleDetailControllerData[] = [];
 
                 for (const item of items) {
-                    const book = booksInDb.find(b => b.id === item.bookId); 
+                    // 🎯 กำหนด Type ให้ b ใน find callback
+                    const book = booksInDb.find((b: BookTransactionResult) => b.id === item.bookId); 
                     
                     if (!book) throw new Error(`Book with ID: ${item.bookId} not found`);
                     if (book.qty < item.qty) throw new Error(`Not enough stock for '${book.name}' (Available: ${book.qty})`);
                     
-                    const bookPrice = (book.price as unknown as { toNumber: () => number })?.toNumber ? 
-                                      (book.price as unknown as { toNumber: () => number }).toNumber() : 
+                    const bookPrice = (book.price as unknown as Decimal)?.toNumber ? 
+                                      (book.price as unknown as Decimal).toNumber() : 
                                       book.price as number;
                     
                     const itemSubtotal = bookPrice * item.qty;
@@ -207,7 +229,8 @@ export const SaleController = {
                         price: bookPrice
                     });
                 }
-
+                
+                // ... โค้ดส่วนอื่น ๆ ที่เกี่ยวข้องกับ Transaction ...
                 const finalTotalFloat = subtotal - pointsToRedeem;
                 const finalTotal = parseFloat(finalTotalFloat.toFixed(2));
 
@@ -234,7 +257,6 @@ export const SaleController = {
                     }
                 }
 
-                // 2.5 บันทึกรายการ Sale
                 const sale = await tx.sale.create({
                     data: { 
                         adminId: adminIdFromAuth, 
@@ -246,7 +268,6 @@ export const SaleController = {
                         pointUsed: pointsToRedeem,
                         details: {
                             createMany: {
-                                // 🎯 แก้ไข: โค้ดนี้ปลอดภัยและเข้ากันได้กับ Prisma.SaleDetailCreateManySaleInput แล้ว
                                 data: saleDetailsData.map(d => ({ 
                                     bookId: d.bookId,
                                     qty: d.qty,
@@ -257,7 +278,6 @@ export const SaleController = {
                     }
                 });
                 
-                // 2.6 ตัดยอดสต็อกสินค้า
                 for (const item of items) {
                     await tx.book.update({
                         where: { id: item.bookId },
@@ -265,7 +285,6 @@ export const SaleController = {
                     });
                 }
 
-                // 2.7 ดึงข้อมูลใบเสร็จฉบับสมบูรณ์เพื่อส่งกลับ
                 const finalReceipt = await tx.sale.findUnique({
                     where: { id: sale.id },
                     include: { 
@@ -282,8 +301,8 @@ export const SaleController = {
                 }
                 
                 const decimalToNumber = (val: Decimal | number | undefined | null) => 
-                    (val as unknown as { toNumber: () => number })?.toNumber ? 
-                    (val as unknown as { toNumber: () => number }).toNumber() : 
+                    (val as unknown as Decimal)?.toNumber ? 
+                    (val as unknown as Decimal).toNumber() : 
                     val as number;
 
                 return { 
