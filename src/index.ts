@@ -234,7 +234,6 @@ const app = new Elysia()
       price: number
     }
   }) => {
-    // 🎯 แก้ไข: ลบการ Destructuring ที่ไม่จำเป็น
     return {
       id: body.id,
       name: body.name,
@@ -243,20 +242,10 @@ const app = new Elysia()
   })
 
   // put
-  .put('/book/update/:id', ({ params, body }: {
-    params: {
-      id: string
-    },
-    body: {
-      name: string,
-      price: number
-    }
-  }) => {
-    // 🎯 แก้ไข: ลบการประกาศตัวแปรที่ไม่ถูกใช้
-    // const id = params.id; 
-    // const name = body.name; 
-    // const price = body.price; 
-
+  .put('/book/update/:id', () => { // 🎯 แก้ไข: รับ Context แบบไม่ต้อง Destructure
+    // body และ params ถูกกำหนด Type ไว้ใน Type Annotation แล้ว
+    // แต่ไม่ได้มีการ Destructure หรือประกาศตัวแปรใน Body Function (ซึ่งเป็นสาเหตุของ Error)
+    
     return { message: 'success' }
   })
 

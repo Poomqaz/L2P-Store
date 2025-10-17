@@ -681,7 +681,7 @@ export default function POSSystem() {
                             
                             <input
                                 type="text"
-                                placeholder="ค้นหาด้วยชื่อหนังสือ, รหัสสินค้าหรือISBN..."
+                                placeholder="ค้นหาด้วยชื่อสินค้า, รหัสสินค้าหรือISBN..."
                                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors duration-200 bg-gray-50 focus:bg-white mb-6"
                                 value={bookSearch}
                                 onChange={(e) => setBookSearch(e.target.value)}
