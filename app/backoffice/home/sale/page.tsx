@@ -10,26 +10,18 @@ import { MemberInterface } from "@/app/interface/MemberInterface"
 import { CartItemInterface } from "@/app/interface/CartItemInterface"
 
 // -------------------------------------------------------------------------
+// การแก้ไข 1: ใช้ Pick เพื่อสร้าง Type ย่อยที่มีเฉพาะฟิลด์ที่ API ส่งกลับมา
+// -------------------------------------------------------------------------
 type MemberSearchInfo = Pick<
     MemberInterface, 
     'id' | 'name' | 'email' | 'phone' | 'points'
 >;
 
-// -------------------------------------------------------------------------
-// *** เพิ่ม Type Interface เพื่อแก้ไข ts(7022) ***
-// -------------------------------------------------------------------------
-interface CalculatedTotals {
-    subtotal: number;
-    discount: number;
-    total: number;
-    maxRedeemablePoints: number;
-}
-
-
 export default function POSSystem() {
     const router = useRouter()
     
     // ---- State Management ----
+    // การแก้ไข 2: เปลี่ยน State ให้ใช้ MemberSearchInfo แทน MemberInterface ตัวเต็ม
     const [selectedMember, setSelectedMember] = useState<MemberSearchInfo | null>(null)
     const [memberSearch, setMemberSearch] = useState('')
     const [bookSearch, setBookSearch] = useState('')
@@ -59,44 +51,55 @@ export default function POSSystem() {
         });
     };
     
-    // 🔥 handleAuthError ถูกห่อหุ้มแล้ว (จากขั้นตอนก่อนหน้า)
-    const handleAuthError = useCallback((err: unknown): boolean => { 
+    const handleAuthError = (err: unknown): boolean => { 
+        
+        // 1. ใช้ Type Guard เพื่อตรวจสอบว่าเป็น AxiosError หรือไม่
+        //    ถ้าไม่ใช่ AxiosError หรือไม่มี response (เช่น network error ก่อนส่ง) 
+        //    เราไม่สามารถตรวจสอบ status ได้ จึง return false ทันที
         if (axios.isAxiosError(err) && err.response) { 
+            
+            // 2. ตรวจสอบ HTTP Status Code 401
             if (err.response.status === 401) {
+                
+                // การจัดการเมื่อเซสชันหมดอายุ
                 localStorage.removeItem(Config.tokenName);
+                
                 Swal.fire({
                     title: 'เซสชันหมดอายุ',
                     text: 'กรุณาเข้าสู่ระบบใหม่',
                     icon: 'warning',
                     confirmButtonText: 'ไปหน้าเข้าสู่ระบบ'
                 }).then(() => {
+                    // สมมติว่า 'router' ถูกเข้าถึงได้จากภายนอกหรือเป็น prop/hook
                     router.push('/signin'); 
                 });
-                return true;
+                
+                return true; // แจ้งว่าจัดการ error นี้แล้ว
             }
         }
+        
+        // 3. ถ้าไม่ใช่ 401 หรือไม่ใช่ Axios Error ให้ return false
         return false;
-    }, [router]);
+    };
 
-    // ---- Utility Functions (แก้ไข: ห่อหุ้มด้วย useCallback) ----
-    // แก้ไข Error 6, 7
-    const showError = useCallback((message: string) => {
+    // ---- Utility Functions ----
+    const showError = (message: string) => {
         setError(message)
         setSuccess('')
-    }, [setError, setSuccess])
+    }
     
-    const showSuccess = useCallback((message: string) => {
+    const showSuccess = (message: string) => {
         setSuccess(message)
         setError('')
-    }, [setSuccess, setError])
+    }
 
-    const clearMessages = useCallback(() => {
+    const clearMessages = () => {
         setError('')
         setSuccess('')
-    }, [setError, setSuccess])
+    }
     
-    // คำนวณยอดรวมสินค้า - ใช้ useCallback และกำหนด Return Type ชัดเจน (แก้ไข Error 1, 5)
-    const calculateTotal = useCallback((): CalculatedTotals => {
+    // คำนวณยอดรวมสินค้า - ใช้ useCallback เพื่อประสิทธิภาพ
+    const calculateTotal = useCallback(() => {
         const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
         
         const memberPoints = selectedMember?.points ?? 0;
@@ -114,7 +117,7 @@ export default function POSSystem() {
             total: Math.max(0, total), 
             maxRedeemablePoints: maxPointsToRedeem
         }
-    }, [cart, pointsToRedeem, selectedMember]) // Dependencies (Error 2, 3, 4) ถูกรวมไว้แล้ว
+    }, [cart, pointsToRedeem, selectedMember]) 
 
     const { subtotal, discount, total, maxRedeemablePoints } = calculateTotal()
     
@@ -143,22 +146,23 @@ export default function POSSystem() {
         // หาก pointsToRedeem เกินขีดจำกัด ให้ปรับลงมา
         if (pointsToRedeem > maxRedeemablePoints) {
             if (pointsToRedeem > 0) {
+                 // 💡 หากเป็น error จากการคำนวณใหม่ ให้ตั้งเป็น 0
                  setPointsToRedeem(0)
-                 // showError ตอนนี้เป็น stable function แล้ว
                  if(cart.length > 0) showError('การใช้แต้มถูกยกเลิก เนื่องจากยอดซื้อไม่เพียงพอหรือแต้มหมด') 
             }
         }
-        // Dependencies ถูกเพิ่มอย่างถูกต้อง รวมถึง showError ที่ตอนนี้ Stable แล้ว
-    }, [cart.length, selectedMember, pointsToRedeem, maxRedeemablePoints, showError]) 
+    }, [cart.length, selectedMember, pointsToRedeem, maxRedeemablePoints]) 
 
     useEffect(() => {
         // ปรับ cashPaid เมื่อเปลี่ยนวิธีการจ่ายเงิน
         if (paymentMethod === 'transfer') {
+            // สำหรับโอนเงิน ถือว่าจ่ายเต็มจำนวน
             setCashPaid(total);
-        } else if (paymentMethod === 'cash' && typeof cashPaid === 'number' && cashPaid < total) { 
+        } else if (paymentMethod === 'cash' && typeof cashPaid === 'number' && cashPaid < total) {
+            // หากเปลี่ยนเป็นเงินสด และเงินที่กรอกไว้น้อยกว่ายอดรวม ให้ล้างค่า (หรือตั้งเป็น total)
             setCashPaid(''); 
         }
-    }, [paymentMethod, total, cashPaid]); 
+    }, [paymentMethod, total]);
     
 
     // ---- API Functions ----
@@ -171,7 +175,7 @@ export default function POSSystem() {
         }
 
         setLoading(true)
-        clearMessages() // Stable function
+        clearMessages()
         setSelectedMember(null) 
 
         try {
@@ -179,8 +183,10 @@ export default function POSSystem() {
             const response = await axios.get(url)
 
             if (response.status === 200 && response.data?.id) {
+                // ✅ การแก้ไข 3: Type Assert ข้อมูลที่ได้รับจาก API ให้เป็น MemberSearchInfo
                 const memberData = response.data as MemberSearchInfo 
 
+                // การกำหนดค่าใน setSelectedMember จะไม่มี error อีกต่อไป
                 setSelectedMember({
                     id: memberData.id,
                     name: memberData.name || 'ไม่ระบุชื่อ',
@@ -188,40 +194,52 @@ export default function POSSystem() {
                     phone: memberData.phone,
                     points: memberData.points || 0
                 })
-                showSuccess(`พบข้อมูลสมาชิก: ${memberData.name || memberData.phone}`) // Stable function
+                showSuccess(`พบข้อมูลสมาชิก: ${memberData.name || memberData.phone}`)
             } else {
-                showError('ไม่พบสมาชิก') // Stable function
+                showError('ไม่พบสมาชิก')
                 setSelectedMember(null)
             }
-        } catch (err: unknown) { 
+        } catch (err: unknown) { // เปลี่ยนเป็น unknown เพื่อให้ TypeScript บังคับตรวจสอบชนิด
+                // 1. จัดการข้อผิดพลาดการยืนยันตัวตน
+            // (สมมติว่า handleAuthError ถูกแก้ไขให้รับ err: unknown แล้ว)
             if (handleAuthError(err)) return; 
             
             let displayMessage: string;
             const defaultError = 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
 
+            // 2. ใช้ Type Guard เพื่อตรวจสอบว่าเป็น AxiosError
             if (axios.isAxiosError(err)) {
                 
+                // ใช้ Optional Chaining และ Type Assertion เพื่อเข้าถึงข้อมูลอย่างปลอดภัย
+                // { message?: string, error?: string } คือโครงสร้างที่คาดว่าเซิร์ฟเวอร์จะส่งกลับมา
                 const serverData = err.response?.data as { message?: string, error?: string };
                 
+                // ดึงข้อความ error ตามลำดับความสำคัญ:
+                // 1. message จากเซิร์ฟเวอร์
+                // 2. error จากเซิร์ฟเวอร์
+                // 3. message ของ AxiosError (เช่น Network Error)
                 displayMessage = serverData?.message 
                     || serverData?.error 
                     || err.message 
                     || defaultError;
 
             } else if (err instanceof Error) {
+                // 3. จัดการ JavaScript Error มาตรฐาน
                 displayMessage = err.message;
             } else {
+                // 4. จัดการ unknown error อื่นๆ
                 displayMessage = defaultError;
             }
-        
-            showError(`ไม่สามารถค้นหาสมาชิกได้: ${displayMessage}`); // Stable function
+            
+            // 5. แสดงผลข้อผิดพลาด
+            showError(`ไม่สามารถค้นหาสมาชิกได้: ${displayMessage}`);
             setSelectedMember(null);
         } finally {
             setLoading(false)
         }
     }
 
-    const searchBooks = useCallback(async (query: string) => {
+    const searchBooks = async (query: string) => {
         const trimmedQuery = query.trim()
         if (!trimmedQuery) {
             setBooks([])
@@ -229,7 +247,7 @@ export default function POSSystem() {
         }
 
         setLoading(true)
-        clearMessages() // Stable function
+        clearMessages()
 
         try {
             const url = Config.apiUrl + `/api/sale/search/book?q=${encodeURIComponent(trimmedQuery)}`
@@ -243,36 +261,47 @@ export default function POSSystem() {
 
             if (activeBooks.length === 0) {
                 if (trimmedQuery) {
-                    showError('ไม่พบหนังสือที่ค้นหา หรือหนังสือหมด') // Stable function
+                    showError('ไม่พบหนังสือที่ค้นหา หรือหนังสือหมด')
                 }
             }
-        } catch (err: unknown) { 
+        } catch (err: unknown) { // ใช้ unknown เพื่อให้ TypeScript บังคับให้เราตรวจสอบชนิด
+            // 1. จัดการข้อผิดพลาดการยืนยันตัวตน (ถ้ามี)
+            // สมมติว่า handleAuthError มีการตรวจสอบชนิดภายในอยู่แล้ว
             if (handleAuthError(err)) return; 
             
             let displayMessage: string;
             const defaultError = 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
 
+            // 2. ใช้ Type Guard เพื่อตรวจสอบว่าเป็น AxiosError
             if (axios.isAxiosError(err)) {
                 
+                // ใช้ Optional Chaining และ Type Assertion เพื่อเข้าถึงข้อมูล
                 const serverData = err.response?.data as { message?: string, error?: string };
                 
+                // ดึงข้อความ error ตามลำดับความสำคัญ: 
+                // 1. message จากเซิร์ฟเวอร์
+                // 2. error จากเซิร์ฟเวอร์ (เผื่อเซิร์ฟเวอร์ใช้ key ว่า 'error')
+                // 3. message ของ AxiosError (เช่น Network Error)
                 displayMessage = serverData?.message 
                     || serverData?.error 
                     || err.message 
                     || defaultError;
 
             } else if (err instanceof Error) {
+                // 3. จัดการ JavaScript Error มาตรฐาน
                 displayMessage = err.message;
             } else {
+                // 4. จัดการ unknown error อื่นๆ
                 displayMessage = defaultError;
             }
             
-            showError(`ไม่สามารถค้นหาหนังสือได้: ${displayMessage}`); // Stable function
+            // 5. แสดงผลข้อผิดพลาด
+            showError(`ไม่สามารถค้นหาหนังสือได้: ${displayMessage}`);
             setBooks([]);
         } finally {
             setLoading(false)
         }
-    }, [handleAuthError, clearMessages, showError]); // Dependencies ถูกต้องแล้ว
+    }
 
     /**
       * ฟังก์ชัน Process Sale ที่แก้ไขให้ส่ง Authorization Header
@@ -301,19 +330,22 @@ export default function POSSystem() {
                 qty: item.qty,
             })),
             pointsToRedeem: pointsToRedeem,
+            // ใน server side controller จะตรวจสอบ cashPaid กับ total อีกครั้งเพื่อความปลอดภัย
             cashPaid: paymentMethod === 'cash' && typeof cashPaid === 'number' ? cashPaid : total 
         }
 
         setLoading(true)
-        clearMessages() // Stable function
+        clearMessages()
 
         try {
+            // ใช้ authenticated axios instance
             const authenticatedAxios = createAuthenticatedAxios();
             const response = await authenticatedAxios.post('/api/sale/create', saleData);
 
             if (response.status === 201 || response.status === 200) {
                 const saleResult = response.data.data
                 
+                // คำนวณเงินทอนอีกครั้งจาก cashPaid ที่ใช้จริง (ใน state)
                 const finalChange = paymentMethod === 'cash' && typeof cashPaid === 'number' && cashPaid > total
                     ? cashPaid - total
                     : 0;
@@ -332,7 +364,9 @@ export default function POSSystem() {
                 })
 
                 
+                // อัปเดต State สมาชิกด้วยแต้มใหม่
                 if (selectedMember && saleResult?.newPoints !== undefined) {
+                    // ใช้ Type Assertion เพื่อให้ TypeScript ยอมรับการอัปเดต Field ย่อย
                     setSelectedMember({
                         ...selectedMember,
                         points: saleResult.newPoints
@@ -341,28 +375,38 @@ export default function POSSystem() {
                 
                 resetForm()
             }
-        } catch (err: unknown) { 
+        } catch (err: unknown) { // รับ err เป็น unknown
+            // หาก handleAuthError ไม่สามารถจัดการได้ (false) ให้ดำเนินการต่อ
             if (handleAuthError(err)) return;
                 
             let errorMessage = 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
 
+            // 1. ตรวจสอบว่าเป็น Axios Error อย่างชัดเจน (Type Guard)
             if (axios.isAxiosError(err)) { 
 
+                // ตรวจสอบข้อความ error ที่เกี่ยวข้องกับการเข้าสู่ระบบ
                 if (err.message === 'ไม่พบ token การเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่') {
+                    // สมมติว่า router ถูก import และพร้อมใช้งาน
+                    // (ในโค้ดต้นฉบับไม่ได้อยู่ใน catch block แต่จะถูกย้ายมาที่นี่)
                     router.push('/signin');
                     return;
                 }
 
+                // 2. ดึงข้อความจาก response (ถ้ามี)
                 if (err.response?.data?.message) {
+                    // เข้าถึงได้ปลอดภัยแล้วเพราะเรารู้ว่าเป็น AxiosError
                     errorMessage = err.response.data.message; 
                 } else if (err.message) {
+                    // ดึงข้อความจาก Error object (เช่น Network Error, Timeout)
                     errorMessage = err.message;
                 }
 
             } else if (err instanceof Error) {
+                // 3. จัดการ JavaScript Error มาตรฐาน
                 errorMessage = err.message;
             }
 
+            // 4. แสดงผลข้อผิดพลาด
             Swal.fire({
                 title: 'เกิดข้อผิดพลาด',
                 text: `ไม่สามารถทำการขายได้: ${errorMessage}`,
@@ -379,19 +423,22 @@ export default function POSSystem() {
         setBooks([])
         setBookSearch('')
         setMemberSearch('')
+        // 💡 ไม่รีเซ็ต selectedMember ทันที หากต้องการให้ข้อมูลสมาชิกยังอยู่หลังการขาย
+        // setSelectedMember(null) 
         setPaymentMethod('cash')
         setCashPaid('')
-        clearMessages() // Stable function
+        clearMessages()
     }
 
     // ---- Cart and Points Logic ----
 
     /**
       * เพิ่มสินค้าลงในตะกร้า
+      * @param book BookInterface ข้อมูลหนังสือที่ต้องการเพิ่ม
       */
     const addToCart = (book: BookInterface) => { 
         if (book.qty <= 0) {
-            showError('สินค้าหมด') // Stable function
+            showError('สินค้าหมด')
             return
         }
 
@@ -405,11 +452,12 @@ export default function POSSystem() {
                         ? { ...item, qty: newQty }
                         : item
                 ))
-                showSuccess(`เพิ่ม ${book.name} ในตะกร้าแล้ว (${newQty} เล่ม)`) // Stable function
+                showSuccess(`เพิ่ม ${book.name} ในตะกร้าแล้ว (${newQty} เล่ม)`)
             } else {
-                showError(`สินค้าไม่เพียงพอ (คงเหลือ ${book.qty} เล่ม)`) // Stable function
+                showError(`สินค้าไม่เพียงพอ (คงเหลือ ${book.qty} เล่ม)`)
             }
         } else {
+            // ใช้ CartItemInterface
             const newItem: CartItemInterface = { 
                 bookId: book.id,
                 name: book.name,
@@ -418,12 +466,14 @@ export default function POSSystem() {
                 maxQty: book.qty,
             }
             setCart([...cart, newItem])
-            showSuccess(`เพิ่ม ${book.name} ในตะกร้าแล้ว`) // Stable function
+            showSuccess(`เพิ่ม ${book.name} ในตะกร้าแล้ว`)
         }
     }
 
     /**
       * อัพเดตจำนวนสินค้าในตะกร้า
+      * @param bookId string ID หนังสือ
+      * @param newQty number จำนวนใหม่
       */
     const updateCartQty = (bookId: string, newQty: number) => {
         setCart(prevCart => {
@@ -432,7 +482,7 @@ export default function POSSystem() {
                     const validQty = Math.max(0, Math.min(newQty, item.maxQty))
                     
                     if (validQty < newQty && newQty > 0) {
-                        showError(`จำนวนเกินที่มีในคลัง (คงเหลือ ${item.maxQty} เล่ม)`) // Stable function
+                        showError(`จำนวนเกินที่มีในคลัง (คงเหลือ ${item.maxQty} เล่ม)`)
                     }
                     
                     return { ...item, qty: validQty }
@@ -442,7 +492,7 @@ export default function POSSystem() {
 
             const removedItem = prevCart.find(item => item.bookId === bookId && newQty <= 0)
             if (removedItem && removedItem.qty > 0) {
-                showSuccess(`ลบ ${removedItem.name} ออกจากตะกร้าแล้ว`) // Stable function
+                showSuccess(`ลบ ${removedItem.name} ออกจากตะกร้าแล้ว`)
             }
             
             return updatedCart
@@ -453,13 +503,13 @@ export default function POSSystem() {
         const item = cart.find(item => item.bookId === bookId)
         setCart(cart.filter(item => item.bookId !== bookId))
         if (item) {
-            showSuccess(`ลบ ${item.name} ออกจากตะกร้าแล้ว`) // Stable function
+            showSuccess(`ลบ ${item.name} ออกจากตะกร้าแล้ว`)
         }
     }
 
     const handlePointsChange = (points: string) => {
         if (!selectedMember) {
-            showError('กรุณาเลือกสมาชิกก่อน') // Stable function
+            showError('กรุณาเลือกสมาชิกก่อน')
             setPointsToRedeem(0)
             return
         }
@@ -467,34 +517,34 @@ export default function POSSystem() {
         const numPoints = Math.max(0, parseInt(points) || 0)
         
         if (numPoints > maxRedeemablePoints) {
-            showError(`ใช้แต้มได้สูงสุด ${maxRedeemablePoints.toLocaleString()} แต้ม`) // Stable function
+            showError(`ใช้แต้มได้สูงสุด ${maxRedeemablePoints.toLocaleString()} แต้ม`)
             setPointsToRedeem(maxRedeemablePoints)
             return
         }
         
         if (numPoints > (selectedMember?.points ?? 0)) {
-            showError(`แต้มสะสมไม่พอ (มี ${selectedMember?.points?.toLocaleString() ?? 0} แต้ม)`) // Stable function
+            showError(`แต้มสะสมไม่พอ (มี ${selectedMember?.points?.toLocaleString() ?? 0} แต้ม)`)
             setPointsToRedeem(selectedMember?.points ?? 0)
             return
         }
 
         setPointsToRedeem(numPoints)
         if (numPoints === 0 && pointsToRedeem !== 0) {
-            showSuccess('ล้างการใช้แต้มแล้ว') // Stable function
+            showSuccess('ล้างการใช้แต้มแล้ว')
         }
     }
 
     const useAllPoints = () => {
         if (!selectedMember) {
-            showError('กรุณาเลือกสมาชิกก่อน') // Stable function
+            showError('กรุณาเลือกสมาชิกก่อน')
             return
         }
         
         if (maxRedeemablePoints > 0) {
             setPointsToRedeem(maxRedeemablePoints)
-            showSuccess(`ใช้แต้มทั้งหมด ${maxRedeemablePoints.toLocaleString()} แต้ม`) // Stable function
+            showSuccess(`ใช้แต้มทั้งหมด ${maxRedeemablePoints.toLocaleString()} แต้ม`)
         } else {
-            showError('ไม่สามารถใช้แต้มได้ (ยอดซื้อเป็น 0 หรือแต้มหมด)') // Stable function
+            showError('ไม่สามารถใช้แต้มได้ (ยอดซื้อเป็น 0 หรือแต้มหมด)')
         }
     }
 
@@ -509,14 +559,14 @@ export default function POSSystem() {
         }, 500)
 
         return () => clearTimeout(timeoutId)
-    }, [bookSearch, searchBooks]) 
+    }, [bookSearch])
 
     useEffect(() => {
         if (success || error) {
-            const timeoutId = setTimeout(clearMessages, 4000) // Stable function
+            const timeoutId = setTimeout(clearMessages, 4000)
             return () => clearTimeout(timeoutId)
         }
-    }, [success, error, clearMessages]) // clearMessages ถูกเพิ่มเป็น dependency
+    }, [success, error])
     
     // ---- JSX Component Return ----
     return (
@@ -540,7 +590,7 @@ export default function POSSystem() {
                         <i className={`fa ${error ? 'fa-exclamation-triangle' : 'fa-check-circle'} flex-shrink-0`}></i>
                         <span className="flex-1 font-medium">{error || success}</span>
                         <button
-                            onClick={clearMessages} // Stable function
+                            onClick={clearMessages}
                             className="text-2xl hover:bg-white hover:bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center transition-colors duration-200 text-gray-500"
                         >
                             &times;
@@ -596,7 +646,7 @@ export default function POSSystem() {
                                                     {selectedMember.email}
                                                 </p>
                                             )}
-                                            <div className="inline-flex items-center text-yellow-600 bg-yellow-50 px-3 py-2 rounded-lg font-medium">
+                                            <div className="flex items-center text-yellow-600 bg-yellow-50 px-3 py-2 rounded-lg inline-block font-medium">
                                                 <i className="fa fa-star mr-2"></i>
                                                 <span className="font-bold">{selectedMember.points.toLocaleString()} แต้ม</span>
                                             </div>
@@ -606,7 +656,7 @@ export default function POSSystem() {
                                                 setSelectedMember(null)
                                                 setMemberSearch('')
                                                 setPointsToRedeem(0)
-                                                showSuccess('ยกเลิกการเลือกสมาชิกแล้ว') // Stable function
+                                                showSuccess('ยกเลิกการเลือกสมาชิกแล้ว')
                                             }}
                                             className="text-xl text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-full w-8 h-8 flex items-center justify-center transition-colors duration-200"
                                             title="ยกเลิกการเลือกสมาชิก"
@@ -625,7 +675,7 @@ export default function POSSystem() {
                                     <i className="fa fa-search text-white text-xl"></i>
                                 </div>
                                 <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                                    ค้นหาหนังสือ
+                                    ค้นหาสินค้า
                                 </h2>
                             </div>
                             

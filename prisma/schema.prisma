@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// bunx prisma generate
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// สินค้า
+model Book {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  price         Int
+  description   String?
+  isbn          String?         @unique
+  createdAt     DateTime?       @default(now())
+  image         String?
+  carts         Cart[]
+  category      String?
+  qty           Int             @default(0)
+  status        String          @default("active")
+  OrderDetails  OrderDetail[]
+  ImportToStock ImportToStock[]
+  saleDetails   SaleDetail[]
+  Review        Review[]
+  averageRating Float           @default(0.0)
+  reviewCount   Int             @default(0)
+}
+
+model ImportToStock {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  bookid    String    @db.ObjectId
+  qty       Int
+  Book      Book      @relation(fields: [bookid], references: [id])
+  createdAt DateTime? @default(now())
+  updateAt  DateTime? @updatedAt
+}
+
+model Admin {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  username String @unique
+  password String
+  level    String @default("admin")
+  status   String @default("active")
+  sales    Sale[]
+}
+
+model Member {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  phone        String
+  username     String   @unique
+  password     String
+  status       String   @default("active")
+  sales        Sale[]
+  address      String?
+  name         String?
+  Orders       Order[]
+  profileImage String?
+  points       Int      @default(0)
+  email        String   @unique
+  Review       Review[]
+}
+
+model Cart {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  bookId   String @db.ObjectId
+  memberId String
+  qty      Int
+  book     Book   @relation(fields: [bookId], references: [id])
+}
+
+model Order {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  memberId        String        @db.ObjectId
+  createdAt       DateTime
+  Member          Member        @relation(fields: [memberId], references: [id])
+  slipImage       String
+  status          String        @default("") // cancel, paid, transfer
+  trackCode       String        @default("")
+  express         String        @default("")
+  remark          String        @default("")
+  customerName    String
+  customerAddress String
+  customerPhone   String
+  OrderDetail     OrderDetail[]
+  total           Int           @default(0)
+}
+
+model OrderDetail {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  bookId  String @db.ObjectId
+  Book    Book   @relation(fields: [bookId], references: [id])
+  price   Int
+  qty     Int
+  orderId String @db.ObjectId
+  Order   Order  @relation(fields: [orderId], references: [id])
+}
+
+model Sale {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt     DateTime     @default(now())
+  total         Int
+  cashPaid      Float        @default(0) // ยอดเงินสดที่ลูกค้าจ่าย
+  change        Float        @default(0) // เงินทอน
+  pointUsed     Int          @default(0) // แต้มที่ลูกค้าใช้ในรายการนี้
+  paymentMethod String
+  remark        String?
+  adminId       String       @db.ObjectId
+  admin         Admin        @relation(fields: [adminId], references: [id])
+  memberId      String?      @db.ObjectId
+  member        Member?      @relation(fields: [memberId], references: [id])
+  details       SaleDetail[]
+}
+
+model SaleDetail {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  saleId String @db.ObjectId
+  sale   Sale   @relation(fields: [saleId], references: [id])
+  bookId String @db.ObjectId
+  book   Book   @relation(fields: [bookId], references: [id])
+  qty    Int
+  price  Int
+}
+
+model Review {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookId    String   @db.ObjectId
+  book      Book     @relation(fields: [bookId], references: [id])
+  memberId  String   @db.ObjectId
+  member    Member   @relation(fields: [memberId], references: [id])
+  rating    Int
+  comment   String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([bookId, memberId])
+}
