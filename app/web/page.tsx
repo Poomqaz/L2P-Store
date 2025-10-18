@@ -19,6 +19,9 @@ export default function Home() {
     const [memberId, setMemberId] = useState('');
     const [qtyInCart, setQtyInCart] = useState(0);
 
+    // *** 💡 1. State สำหรับเก็บรายการแนะนำหนังสือ ***
+    const [recommendations, setRecommendations] = useState<BookInterface[]>([]);
+
     // *** State สำหรับดูรายละเอียดสินค้า ***
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [currentDetailBook, setCurrentDetailBook] = useState<BookInterface | null>(null);
@@ -128,7 +131,7 @@ export default function Home() {
         }
     }, [memberId, token]) // Dependency: memberId และ token
     
-    // *** 3. ห่อหุ้ม handleAddToCart ด้วย useCallback และเพิ่ม fetchDataCart ใน Dependency ***
+    // *** 3. ห่อหุ้ม handleAddToCart ด้วย useCallback ***
     const handleAddToCart = useCallback(async (bookId: string, availableStock: number) => {
         if (memberId === '') {
             Swal.fire({
@@ -181,6 +184,25 @@ export default function Home() {
         }
    // ** Dependency: memberId และ fetchDataCart **
     }, [memberId, fetchDataCart])
+    
+    
+    // *** 💡 2. ฟังก์ชันเรียก API หนังสือแนะนำ ***
+    const fetchRecommendations = useCallback(async (bookId: string) => {
+        setRecommendations([]); // ล้างรายการเก่าก่อน
+
+        try {
+            const url = Config.apiUrl + `/api/book/${bookId}/recommendations`;
+            const response = await axios.get(url);
+
+            if (response.status === 200) {
+                setRecommendations(response.data as BookInterface[]);
+            }
+        } catch (err: unknown) {
+            console.error('Error fetching recommendations:', err);
+            // ไม่ต้องแสดง Swal error เพราะเป็นเพียงฟังก์ชันเสริม
+            setRecommendations([]);
+        }
+    }, []); // Dependency array ว่างเปล่า
     
     // *** ฟังก์ชันสำหรับสร้าง HTML รายการรีวิวและฟิลเตอร์ ***
     const generateReviewHtml = useCallback((reviewsList: ReviewInterface[], currentFilter: number | 'all', bookName: string) => {
@@ -353,7 +375,7 @@ export default function Home() {
                 icon: 'error'
             });
         }
-    }, [displayReviewModal, generateReviewHtml]); // Dependency: displayReviewModal, generateReviewHtml
+    }, [displayReviewModal, generateReviewHtml])
     
     // *** ฟังก์ชันสำหรับแสดง Modal และส่ง Review ***
     const handleReview = useCallback(async (book: BookInterface) => {
@@ -482,17 +504,20 @@ export default function Home() {
                 });
             }
         }
-    }, [memberId, fetchData]); // Dependency: memberId, fetchData
+    }, [memberId, fetchData]);
 
 
-    // *** ฟังก์ชันสำหรับเปิด Modal ดูรายละเอียดสินค้า ***
-    const handleViewDetail = (book: BookInterface) => {
+    // *** ฟังก์ชันสำหรับเปิด Modal ดูรายละเอียดสินค้า (ห่อหุ้มด้วย useCallback) ***
+    const handleViewDetail = useCallback((book: BookInterface) => {
         setCurrentDetailBook(book);
         setIsDetailModalOpen(true);
-    };
+        // *** 💡 เรียกฟังก์ชันดึงรายการแนะนำทันทีที่เปิด Modal ***
+        fetchRecommendations(book.id); 
+    }, [fetchRecommendations]); // Dependency: fetchRecommendations เท่านั้น เพราะ state setters มีความเสถียร
 
     // ฟังก์ชันสำหรับแสดง Modal รายละเอียดสินค้า 
-    const displayDetailModal = useCallback((book: BookInterface) => {
+    // *** 💡 3. ปรับปรุง displayDetailModal เพื่อรับ recommendations ***
+    const displayDetailModal = useCallback((book: BookInterface, recommendedBooks: BookInterface[]) => {
         const stockInfo = getStockInfo(book);
         const averageRating = book.averageRating ? parseFloat(book.averageRating.toFixed(1)) : 0;
         const isLoggedIn = token !== '';
@@ -504,6 +529,47 @@ export default function Home() {
                 style="color: ${star <= Math.round(averageRating) ? '#ffc107' : '#d1d5db'};"
             ></i>
         `).join('');
+        
+        // *** 💡 4. HTML สำหรับส่วนรายการแนะนำหนังสือ (ลบ recStockInfo ที่ไม่ได้ใช้ออกไปแล้ว) ***
+        const recommendationHtml = recommendedBooks.length > 0 ? `
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fa fa-thumbs-up text-blue-500 mr-2"></i> สินค้าที่คุณอาจสนใจ
+                </h4>
+                <div class="flex space-x-4 overflow-x-auto pb-2 scrollbar-hide">
+                    ${recommendedBooks.map(recBook => {
+                        // *** ลบ: const recStockInfo = getStockInfo(recBook); ***
+                        return `
+                            <div 
+                                id="rec-book-${recBook.id}"
+                                class="flex-shrink-0 w-36 bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden group"
+                                data-book-id="${recBook.id}"
+                            >
+                                <div class="h-28 flex justify-center items-center p-2 bg-gray-50">
+                                    <img 
+                                        src="${Config.apiUrl + '/public/uploads/' + recBook.image}" 
+                                        alt="${recBook.name}" 
+                                        class="max-h-full object-contain w-full rounded-md"
+                                    />
+                                </div>
+                                <div class="p-3 text-center">
+                                    <h5 class="text-sm font-semibold line-clamp-2 mb-1 text-gray-700 group-hover:text-blue-600">${recBook.name}</h5>
+                                    <span class="text-xs font-bold text-red-600">
+                                        ฿${recBook.price.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        ` : `
+            <div class="mt-6 pt-6 border-t border-gray-200 text-center text-gray-500">
+                <i class="fa fa-info-circle mr-2"></i> 
+                ไม่มีสินค้าแนะนำที่เกี่ยวข้อง
+            </div>
+        `;
+
 
         Swal.fire({
             // ปรับ Title ให้น่าสนใจขึ้น
@@ -589,7 +655,7 @@ export default function Home() {
                             <p class="text-gray-700 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">${book.description || 'ไม่มีคำอธิบายสำหรับสินค้านี้'}</p>
                         </div>
                     </div>
-                </div>
+                    ${recommendationHtml} </div>
             `,
             customClass: {
                 // *** ปรับปรุง: เพิ่มความกว้างของ Modal ***
@@ -609,6 +675,7 @@ export default function Home() {
                 const addToCartBtn = document.getElementById('swal-add-to-cart-btn');
                 const reviewBtn = document.getElementById('swal-review-btn');
                 const viewReviewsBtn = document.getElementById('swal-view-reviews-btn');
+                const container = Swal.getHtmlContainer();
 
                 if (addToCartBtn) {
                     addToCartBtn.onclick = () => {
@@ -633,16 +700,36 @@ export default function Home() {
                         handleViewReviews(book);
                     };
                 }
+                
+                // 💡 ผูก Event Listener สำหรับรายการแนะนำหนังสือ
+                if (container) {
+                    recommendedBooks.forEach(recBook => {
+                        const recElement = container.querySelector(`#rec-book-${recBook.id}`);
+                        if (recElement) {
+                            recElement.addEventListener('click', () => {
+                                // 1. หาข้อมูล BookInterface ของหนังสือที่ถูกแนะนำจาก state books
+                                const targetBook = books.find(b => b.id === recBook.id);
+                                if (targetBook) {
+                                    // 2. ปิด Modal เก่า
+                                    Swal.close();
+                                    // 3. เปิด Modal ใหม่สำหรับหนังสือที่ถูกแนะนำ
+                                    handleViewDetail(targetBook); 
+                                }
+                            });
+                        }
+                    });
+                }
             },
             // จัดการเมื่อ Modal ถูกปิด
             didClose: () => {
                 setIsDetailModalOpen(false);
                 setCurrentDetailBook(null);
+                setRecommendations([]); // ล้างรายการแนะนำเมื่อปิด Modal
             }
         });
-    }, [token, handleAddToCart, handleReview, handleViewReviews]); // Dependency: token, handleAddToCart, handleReview, handleViewReviews
-    
+    }, [token, handleAddToCart, handleReview, handleViewReviews, books, handleViewDetail]); // Dependency: handleViewDetail ถูกเพิ่มเข้าไปแล้ว
 
+    
     // *** 5. ปรับปรุง useEffect หลัก ให้มี fetchDataCart ใน Dependency ***
     useEffect(() => {
         readToken();
@@ -666,12 +753,13 @@ export default function Home() {
         }
     }, [books, searchTerm])
     
-    // *** useEffect สำหรับแสดง/อัปเดต Modal ดูรายละเอียดสินค้า (คงเดิม) ***
+    // *** useEffect สำหรับแสดง/อัปเดต Modal ดูรายละเอียดสินค้า ***
     useEffect(() => {
+        // *** 💡 แก้ไข: ส่ง recommendations เข้าไปใน displayDetailModal ด้วย ***
         if (isDetailModalOpen && currentDetailBook) {
-            displayDetailModal(currentDetailBook);
+            displayDetailModal(currentDetailBook, recommendations);
         }
-    }, [isDetailModalOpen, currentDetailBook, displayDetailModal]);
+    }, [isDetailModalOpen, currentDetailBook, recommendations, displayDetailModal]); // Dependency: recommendations ถูกเพิ่มเข้ามาด้วย
     
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
@@ -822,12 +910,10 @@ export default function Home() {
                                     <img 
                                     
                                         src={Config.apiUrl + '/public/uploads/' + book.image} 
+                                        // *** แก้ไข: ลบ className ที่ทำให้เป็น grayscale ออก เพื่อให้ภาพเป็นสี ***
                                         className={`rounded-xl max-h-full object-contain shadow-md transition-transform duration-300 ${
-                                            stockInfo.status 
-                                                === 'out-of-stock' 
-                                                ?
-                                                'grayscale' 
-                                                : 'group-hover:scale-105'
+                                            // stockInfo.status === 'out-of-stock' ? 'grayscale' : 
+                                            'group-hover:scale-105'
                                             }`} 
      
                                         alt={book.name}
