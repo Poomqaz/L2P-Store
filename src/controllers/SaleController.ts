@@ -187,7 +187,6 @@ export const SaleController = {
                 
                 let subtotal = 0;
                 const saleDetailsData: SaleDetailControllerData[] = [];
-                // 🎯 ใช้ Type ของ Prisma โดยตรง
                 const saleDetailsPrismaData: Prisma.SaleDetailCreateManySaleInput[] = []; 
 
                 for (const item of items) {
@@ -210,8 +209,6 @@ export const SaleController = {
                         price: bookPrice
                     });
                     
-                    // ✅ ใช้ @ts-expect-error เพื่อให้ผ่าน ESLint และแก้ปัญหา Type Inference Conflict
-                    // @ts-expect-error: Prisma.Decimal constructor output conflicts with Prisma's inferred input type for price field.
                     saleDetailsPrismaData.push({
                         bookId: item.bookId,
                         qty: item.qty,
@@ -256,7 +253,6 @@ export const SaleController = {
                         pointUsed: pointsToRedeem,
                         details: {
                             createMany: {
-                                // ✅ ใช้ตัวแปร saleDetailsPrismaData ที่ถูก Type และเตรียมข้อมูล Decimal ไว้แล้ว
                                 data: saleDetailsPrismaData, 
                             }
                         }
