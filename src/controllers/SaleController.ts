@@ -212,7 +212,7 @@ export const SaleController = {
                     saleDetailsPrismaData.push({
                         bookId: item.bookId,
                         qty: item.qty,
-                        price: new Prisma.Decimal(bookPrice), 
+                        price: bookPrice, 
                     });
                 }
                 
