@@ -1,7 +1,7 @@
 'use client'
 
 import { Config } from "@/app/config";
-import { useEffect, useState, useCallback } from "react"; // <--- เพิ่ม useCallback ที่นี่
+import { useEffect, useState, useCallback } from "react"; 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface Book {
@@ -21,6 +21,19 @@ interface MonthlyIncomeData {
     income: number;
 }
 
+// ** Interface ใหม่สำหรับข้อมูล Dashboard ทั้งหมดที่จะส่งไปวิเคราะห์ **
+interface DashboardData {
+    totalOrder: number;
+    totalIncome: number;
+    totalSaleCount: number;
+    totalSaleIncome: number;
+    totalAllIncome: number;
+    totalMember: number;
+    monthlyIncome: MonthlyIncomeData[];
+    topProducts: Book[]; 
+    categories: string[];
+}
+
 export default function Dashboard() {
     const [totalOrder, setTotalOrder] = useState(0);
     const [totalIncome, setTotalIncome] = useState(0);
@@ -34,6 +47,10 @@ export default function Dashboard() {
     const [chartType, setChartType] = useState<'line' | 'bar'>('line');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    
+    // State สำหรับผู้ช่วยวิเคราะห์
+    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
     
     // Filter states
     const [selectedMonth, setSelectedMonth] = useState('');
@@ -59,7 +76,62 @@ export default function Dashboard() {
         { value: '12', label: 'ธันวาคม' }
     ];
 
-    // 1. ห่อหุ้ม fetchData ด้วย useCallback และกำหนด Dependencies
+    const formatCurrency = (value: number) => {
+        if (typeof value !== 'number') return 'N/A';
+        return new Intl.NumberFormat('th-TH', {
+            style: 'currency',
+            currency: 'THB'
+        }).format(value);
+    };
+
+    // ฟังก์ชัน: ดึงข้อมูลการวิเคราะห์จาก Gemini API (ผ่าน Backend)
+    const fetchAnalysis = useCallback(async (dashboardData: DashboardData) => {
+        if (isAnalysisLoading) return; 
+        setIsAnalysisLoading(true);
+        setAnalysisResult(null); 
+
+        try {
+            // สมมติว่ามี API Endpoint ที่ Backend จัดการการเรียก Gemini API
+            const url = Config.apiUrl + '/api/dashboard/analyze'; 
+            const token = localStorage.getItem(Config.tokenName);
+
+            if (!token) {
+                // หากไม่มี token อาจจะไม่ต้อง Throw Error แต่ตั้งค่าให้แสดงข้อความเตือนแทนก็ได้
+                setAnalysisResult('ไม่สามารถวิเคราะห์ได้: ไม่พบ token การยืนยันตัวตน');
+                return;
+            }
+
+            const headers = {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            };
+            
+            // ส่งข้อมูลสรุป Dashboard ไปให้ Backend เพื่อวิเคราะห์
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(dashboardData)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // สมมติว่า Backend ส่งข้อความวิเคราะห์กลับมาในฟิลด์ 'analysis'
+                setAnalysisResult(data.analysis || 'ไม่สามารถสร้างการวิเคราะห์ได้');
+            } else {
+                // หากสถานะไม่ OK แต่ Backend อาจมีรายละเอียดข้อผิดพลาด
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.message || `เกิดข้อผิดพลาดในการวิเคราะห์ (${response.status})`;
+                throw new Error(errorMessage);
+            }
+        } catch (err) {
+            console.error('Error fetching analysis data:', err);
+            setAnalysisResult(`เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err instanceof Error ? err.message : 'ไม่ทราบสาเหตุ'}`);
+        } finally {
+            setIsAnalysisLoading(false);
+        }
+    }, [isAnalysisLoading]); 
+
+    // ฟังก์ชัน: ดึงข้อมูล Dashboard หลัก
     const fetchData = useCallback(async (month = selectedMonth, year = selectedYear, category = selectedCategory) => {
         setIsLoading(true);
         setError(null);
@@ -90,7 +162,9 @@ export default function Dashboard() {
             });
 
             if (response.ok) {
-                const data = await response.json();
+                // TypeScript จะรู้ว่า data นี้ควรมีโครงสร้างตาม DashboardData
+                const data: DashboardData = await response.json(); 
+                
                 setTotalOrder(data.totalOrder || 0);
                 setTotalIncome(data.totalIncome || 0);
                 setTotalSaleCount(data.totalSaleCount || 0);
@@ -98,8 +172,11 @@ export default function Dashboard() {
                 setTotalAllIncome(data.totalAllIncome || 0);
                 setTotalMember(data.totalMember || 0);
                 setMonthlyIncome(data.monthlyIncome || []);
-                setTopBooks(data.topProducts || []);
+                setTopBooks(data.topProducts || []); // ใช้ topProducts
                 setCategories(data.categories || []);
+                
+                // เรียกใช้ฟังก์ชันวิเคราะห์หลังดึงข้อมูลหลักสำเร็จ
+                fetchAnalysis(data); 
             } else if (response.status === 401) {
                 throw new Error('ไม่มีสิทธิ์เข้าถึงข้อมูล กรุณาเข้าสู่ระบบใหม่');
             } else {
@@ -109,6 +186,7 @@ export default function Dashboard() {
             console.error('Error fetching dashboard data:', err);
             setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการดึงข้อมูล');
             
+            // เคลียร์ข้อมูลและผลวิเคราะห์หากดึงข้อมูลหลักล้มเหลว
             setTotalOrder(0);
             setTotalIncome(0);
             setTotalSaleCount(0);
@@ -118,22 +196,18 @@ export default function Dashboard() {
             setMonthlyIncome([]);
             setTopBooks([]);
             setCategories([]);
+            setAnalysisResult(null); 
         } finally {
             setIsLoading(false);
         }
-    }, [selectedMonth, selectedYear, selectedCategory]) // Dependencies สำหรับ useCallback
+    }, [selectedMonth, selectedYear, selectedCategory, fetchAnalysis]) 
 
-    // 2. ปรับปรุง useEffect ให้เรียก fetchData
     useEffect(() => {
-        // เมื่อคอมโพเนนต์ Mount จะเรียก fetchData ครั้งแรก
-        // และเมื่อค่าใน Dependencies ของ fetchData (selectedMonth, selectedYear, selectedCategory) เปลี่ยน จะถูกเรียกใช้โดยตรงผ่าน handleFilterChange
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // รันครั้งเดียวเมื่อ Mount
+    }, []); 
 
-    // 3. ลบ setTimeout ใน handleFilterChange
     const handleFilterChange = (filterType: 'year' | 'month' | 'category', value: string) => {
-        // เก็บค่าใหม่ที่กำลังจะถูกตั้งค่าเพื่อส่งไปยัง fetchData ทันที
         let newMonth = selectedMonth;
         let newYear = selectedYear;
         let newCategory = selectedCategory;
@@ -149,7 +223,6 @@ export default function Dashboard() {
             newCategory = value;
         }
         
-        // **เรียก fetchData ทันทีด้วยค่าใหม่ โดยไม่ต้องรอ setTimeout**
         fetchData(newMonth, newYear, newCategory);
     };
 
@@ -157,21 +230,10 @@ export default function Dashboard() {
         setSelectedMonth('');
         setSelectedYear(new Date().getFullYear().toString());
         setSelectedCategory('');
-        // เรียก fetchData ทันทีด้วยค่าเริ่มต้น
         fetchData('', new Date().getFullYear().toString(), '');
     };
     
-    // ... (formatCurrency function)
-    const formatCurrency = (value: number) => {
-        if (typeof value !== 'number') return 'N/A';
-        return new Intl.NumberFormat('th-TH', {
-            style: 'currency',
-            currency: 'THB'
-        }).format(value);
-    };
-
     return (
-        // ... (rest of the component remains the same)
         <div className="p-5 bg-gray-50 min-h-screen">
             <h1 className="text-3xl font-bold mb-8 text-gray-800">Dashboard</h1>
             
@@ -199,9 +261,9 @@ export default function Dashboard() {
 
             {!isLoading && !error && (
                 <>
-                    {/* Summary Cards - แสดง 5 การ์ด */}
+                    {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-                        <div className="p-6 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl text-white shadow-lg hover:shadow-xl transition-shadow">
+                         <div className="p-6 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl text-white shadow-lg hover:shadow-xl transition-shadow">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <div className="text-lg font-medium opacity-90">รายการสั่งซื้อ</div>
@@ -253,8 +315,29 @@ export default function Dashboard() {
                         </div>
                     </div>
 
+                    {/* ส่วน: ผู้ช่วยวิเคราะห์ Gemini */}
+                    <div className="bg-blue-50 border-2 border-blue-200 rounded-xl shadow-lg p-6 mb-8">
+                        <h2 className="text-2xl font-bold text-blue-800 mb-4 flex items-center">
+                            <i className="fa fa-magic text-blue-500 mr-3"></i>
+                            ผู้ช่วยวิเคราะห์ (โดย Gemini)
+                        </h2>
+                        {isAnalysisLoading ? (
+                             <div className="flex items-center text-blue-600">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-3"></div>
+                                <span className="text-gray-600">กำลังประมวลผลการวิเคราะห์...</span>
+                            </div>
+                        ) : analysisResult ? (
+                            <p className="text-gray-700 whitespace-pre-line leading-relaxed">{analysisResult}</p>
+                        ) : (
+                            <div className="text-gray-500">
+                                กดปุ่มรีเฟรชข้อมูล หรือเปลี่ยน Filter เพื่อรับการวิเคราะห์จาก AI
+                            </div>
+                        )}
+                    </div>
+                    {/* สิ้นสุดส่วนผู้ช่วยวิเคราะห์ */}
+
                     <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
                             <h2 className="text-2xl font-bold text-gray-800">กราฟรายได้</h2>
                             
                             <div className="flex flex-wrap gap-3">
@@ -390,7 +473,7 @@ export default function Dashboard() {
                     </div>
                 
                     {/* สรุปรายได้แยกตามช่องทาง */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div className="bg-white rounded-xl shadow-lg p-6">
                             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                 <i className="fa fa-globe text-green-500 mr-3"></i>
@@ -438,6 +521,7 @@ export default function Dashboard() {
                         </div>
                     </div>
                     
+                    {/* สินค้าขายดี 5 อันดับ */}
                     {topBooks.length > 0 && (
                         <div className="bg-white rounded-xl shadow-lg p-6">
                             <h2 className="text-2xl font-bold text-gray-800 mb-6">สินค้าขายดี 5 อันดับ (รวมทุกช่องทาง)</h2>
